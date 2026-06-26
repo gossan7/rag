@@ -1,5 +1,6 @@
 UV 			:= uv
 PYTHON 		:= $(UV) run python
+SRC 		:= ./src/
 ARGS		?=
 
 
@@ -9,6 +10,9 @@ run:
 
 install:
 	$(UV) sync
+
+lint:
+	$(PYTHON) -m mypy $(SRC)
 
 clean:
 	@rm -rf .mypy_cache src/rag.egg-info/

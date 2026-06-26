@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "fire>=0.7.1",
+    "mypy>=2.1.0",
     "pydantic>=2.13.4",
 ]
 
@@ -15,3 +16,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[[tool.mypy.overrides]]
+module = ["fire"]
+ignore_missing_imports = true
