@@ -1,3 +1,6 @@
 .venv
 .installed
 *cache*
+data/
+42files
+src/rag.egg-info/
