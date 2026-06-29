@@ -9,16 +9,26 @@ input:
 
 # Specifies the chunking strategy for each handled type
 # Available strategies: ast (python syntax) | headers (markdown structure) | window (split every chunk_size)
-chunking_strategy:
-  .py: window
-  .md: window
-  .txt: window
+chunking:
+  .py:
+    method: window
+    save_path: data/processed/chunks/
+  .md:
+    method: window
+    save_path: data/processed/chunks/
+  .txt:
+    method: window
+    save_path: data/processed/chunks/
 
 # Specifies which retrival strategy is used on commands.
 # Multiple strategies can be selected. The score used for chunks would then be the sum of both scores.
 retrieval:
-  bm25: true
-  chroma: false
+  bm25:
+    active: true
+    save_path: data/processed/bm25_index/
+  chroma:
+    active: true
+    save_path: data/processed/chroma/
 
 # Specifies which model to use for generation. Also specifies the maximum context length.
 # The context length cannot be more than 10 000.

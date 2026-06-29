@@ -15,8 +15,10 @@ lint:
 	$(PYTHON) -m mypy $(SRC)
 
 clean:
-	@rm -rf .mypy_cache src/rag.egg-info/
-	@find . -type f -name '*.py[co]' -delete -o -type d -name __pycache__ -delete
+	rm -rf .mypy_cache
+	rm -rf src/rag.egg-info/
+	rm -rf data/processed
+	find . -type f -name '*.py[co]' -delete -o -type d -name __pycache__ -delete
 
 fclean: clean
 	@rm -rf .venv

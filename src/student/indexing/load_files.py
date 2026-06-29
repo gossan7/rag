@@ -1,4 +1,4 @@
-from typing import List, Dict, Tuple, Any
+from typing import List, Dict, Any
 from pathlib import Path
 
 
@@ -20,16 +20,16 @@ def find_files(config: Dict[str, Any]) -> Dict[str, List[str]]:
 
 def load_files(config: Dict[str, Any],
                max_chunk_length: int
-               ) -> Dict[str, List[Tuple[str, str]]]:
-    files: Dict[str, List[Tuple[str, str]]] = {}
+               ) -> Dict[str, Dict[str, str]]:
+    files: Dict[str, Dict[str, str]] = {}
     files_path = find_files(config)
 
     for extension in files_path:
-        files[extension] = []
+        files[extension] = {}
         for path in files_path[extension]:
             try:
                 with open(path, "r", encoding="utf-8") as f:
-                    files[extension].append((path, f.read()))
+                    files[extension][path] = f.read()
 
             except Exception as e:
                 raise Exception(
