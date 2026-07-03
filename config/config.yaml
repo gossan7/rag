@@ -11,7 +11,7 @@ input:
 # Available strategies: ast (python syntax) | headers (markdown structure) | window (split every chunk_size)
 chunking:
   .py:
-    method: window
+    method: ast
     save_path: data/processed/chunks/
   .md:
     method: window

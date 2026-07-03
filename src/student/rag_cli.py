@@ -18,6 +18,6 @@ class RagCLI:
 
     def index(self, max_chunk_length: int = 2000) -> None:
         chunks = create_chunks(self.config, max_chunk_length)
-        for ext in chunks:
-            for chunk in chunks[ext]:
-                print(chunk)
+        # for ext in chunks:
+        #     for chunk in chunks[ext]:
+        #         print(chunk)
