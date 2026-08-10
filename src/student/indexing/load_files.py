@@ -18,9 +18,7 @@ def find_files(config: Dict[str, Any]) -> Dict[str, List[str]]:
     return files_path
 
 
-def load_files(config: Dict[str, Any],
-               max_chunk_length: int
-               ) -> Dict[str, Dict[str, str]]:
+def load_files(config: Dict[str, Any]) -> Dict[str, Dict[str, str]]:
     files: Dict[str, Dict[str, str]] = {}
     files_path = find_files(config)
 

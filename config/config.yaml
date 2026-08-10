@@ -8,21 +8,24 @@ input:
   excludes: [__pycache__, .git, .venv]
 
 # Specifies the chunking strategy for each handled type
-# Available strategies: ast (python syntax) | headers (markdown structure) | window (split every chunk_size)
+# Available strategies: ast (python syntax) | window (split every chunk_size) | langchain_{python|markdown|text}
 chunking:
   .py:
-    method: ast
+    method: langchain_python
     save_path: data/processed/chunks/
   .md:
-    method: window
+    method: langchain_markdown
     save_path: data/processed/chunks/
   .txt:
-    method: window
+    method: langchain_text
     save_path: data/processed/chunks/
 
 # Specifies which retrival strategy is used on commands.
 # Multiple strategies can be selected. The score used for chunks would then be the sum of both scores.
 retrieval:
+  tf-idf:
+    active: false
+    save_path: data/processed/tf-idf
   bm25:
     active: true
     save_path: data/processed/bm25_index/

@@ -1,5 +1,6 @@
 from typing import List, Dict, Any
 from pathlib import Path
+from langchain_text_splitters import RecursiveCharacterTextSplitter, Language
 import json
 import ast
 
@@ -8,10 +9,18 @@ from .bm25 import bm25_index
 from ..structures import MinimalSource
 
 
+def line_offsets(content: str) -> list[int]:
+    """offsets[k] = index du 1er caractère de la ligne k+1 (1-indexée)."""
+    offsets = [0]
+    for i, char in enumerate(content):
+        if char == "\n":
+            offsets.append(i + 1)
+    return offsets
+
+
 def window_chunk(
     files: Dict[str, str],
     max_chunk_length: int,
-    retrieval: Dict[str, bool]
 ) -> List[MinimalSource]:
     chunks: List[MinimalSource] = []
     for path, content in files.items():
@@ -26,15 +35,6 @@ def window_chunk(
                 )
             ))
     return chunks
-
-
-def line_offsets(content: str) -> list[int]:
-    """offsets[k] = index du 1er caractère de la ligne k+1 (1-indexée)."""
-    offsets = [0]
-    for i, char in enumerate(content):
-        if char == "\n":
-            offsets.append(i + 1)
-    return offsets
 
 
 def create_ast_chunk(
@@ -65,7 +65,6 @@ def create_ast_chunk(
 def ast_chunk(
     files: Dict[str, str],
     max_chunk_length: int,
-    retrieval: Dict[str, bool]
 ) -> List[MinimalSource]:
     chunks: List[MinimalSource] = []
     for path, content in files.items():
@@ -94,31 +93,114 @@ def ast_chunk(
     return chunks
 
 
+def langchain_language_chunk(
+    files: Dict[str, str],
+    max_chunk_length: int,
+    language: Language
+) -> List[MinimalSource]:
+    chunks: List[MinimalSource] = []
+
+    splitter = RecursiveCharacterTextSplitter.from_language(
+        language=language,
+        chunk_size=max_chunk_length,
+        chunk_overlap=100,
+        add_start_index=True
+    )
+
+    for path in files:
+        documents = splitter.create_documents([files[path]])
+        for doc in documents:
+            start = doc.metadata["start_index"]
+            end = start + len(doc.page_content)
+            chunks.append(MinimalSource(
+                file_path=path,
+                first_character_index=start,
+                last_character_index=end
+            ))
+
+    return chunks
+
+
+def langchain_python_chunk(
+    files: Dict[str, str],
+    max_chunk_length: int,
+) -> List[MinimalSource]:
+    return langchain_language_chunk(
+        files=files,
+        max_chunk_length=max_chunk_length,
+        language=Language.PYTHON
+    )
+
+
+def langchain_markdown_chunk(
+    files: Dict[str, str],
+    max_chunk_length: int,
+) -> List[MinimalSource]:
+    return langchain_language_chunk(
+        files=files,
+        max_chunk_length=max_chunk_length,
+        language=Language.MARKDOWN
+    )
+
+def langchain_text_chunk(
+    files: Dict[str, str],
+    max_chunk_length: int,
+) -> List[MinimalSource]:
+    chunks: List[MinimalSource] = []
+
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=max_chunk_length,
+        chunk_overlap=100,
+        add_start_index=True
+    )
+
+    for path in files:
+        documents = splitter.create_documents([files[path]])
+        for doc in documents:
+            start = doc.metadata["start_index"]
+            end = start + len(doc.page_content)
+            chunks.append(MinimalSource(
+                file_path=path,
+                first_character_index=start,
+                last_character_index=end
+            ))
+
+    return chunks
+
+
 CHUNKING = {
     "window": window_chunk,
-    "ast": ast_chunk
+    "ast": ast_chunk,
+    "langchain_python": langchain_python_chunk,
+    "langchain_markdown": langchain_markdown_chunk,
+    "langchain_text": langchain_text_chunk
 }
+
+
+INDEXING = [
+    (bm25_index, "bm25")
+]
 
 
 def create_chunks(
     config: Dict[str, Any],
     max_chunk_length: int
 ) -> Dict[str, List[MinimalSource]]:
-
-    files = load_files(config, max_chunk_length)
+    files = load_files(config)
     chunks: Dict[str, List[MinimalSource]] = {}
     for extension in files:
         chunks[extension] = CHUNKING[config["chunking"][extension]["method"]](
             files[extension],
             max_chunk_length,
-            config["retrieval"]
         )
-        bm25_index(
-            chunks[extension],
-            files[extension],
-            config["retrieval"]["bm25"],
-            extension
-        )
+
+        for func, name in INDEXING:
+            func(
+                chunks=chunks[extension],
+                files=files[extension],
+                retrieval_config=config["retrieval"][name],
+                extension=extension
+            )
 
         json_file = config["chunking"][extension]["save_path"] + \
             extension[1:] + ".json"
