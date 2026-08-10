@@ -9,6 +9,5 @@ class StudentSearchResults(BaseModel):
     k: int
 
 
-class StudentSearchResultsAndAnswer(BaseModel):
+class StudentSearchResultsAndAnswer(StudentSearchResults):
     search_results: List[MinimalAnswer]
-    k: int

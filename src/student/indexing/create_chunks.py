@@ -5,7 +5,7 @@ import json
 import ast
 
 from .load_files import load_files
-from .bm25 import bm25_index
+from .create_indexes import bm25_index, tfidf_index, chroma_index
 from ..structures import MinimalSource
 
 
@@ -71,32 +71,51 @@ def create_ast_chunk(
 
 def ast_chunk(
     files: Dict[str, str],
-    max_chunk_size: int,
+    max_chunk_length: int,
 ) -> List[MinimalSource]:
     chunks: List[MinimalSource] = []
+
     for path, content in files.items():
         tree = ast.parse(content)
         offsets = line_offsets(content)
+
         for node in tree.body:
             if isinstance(node, ast.ClassDef):
+                class_start = offsets[node.lineno - 1]
+
                 for item in node.body:
-                    create_ast_chunk(
-                        chunks,
+                    if not isinstance(
                         item,
-                        path,
-                        offsets,
-                        max_chunk_size,
-                        content
+                        (ast.FunctionDef, ast.AsyncFunctionDef),
+                    ):
+                        continue
+
+                    if (
+                        item.end_lineno is not None
+                        and item.end_lineno < len(offsets)
+                    ):
+                        method_end = offsets[item.end_lineno]
+                    else:
+                        method_end = len(content)
+
+                    chunks.append(
+                        MinimalSource(
+                            file_path=path,
+                            first_character_index=class_start,
+                            last_character_index=method_end,
+                        )
                     )
+
             else:
                 create_ast_chunk(
                     chunks,
                     node,
                     path,
                     offsets,
-                    max_chunk_size,
-                    content
+                    max_chunk_length,
+                    content,
                 )
+
     return chunks
 
 
@@ -191,7 +210,9 @@ CHUNKING = {
 
 
 INDEXING = [
-    (bm25_index, "bm25")
+    (bm25_index, "bm25"),
+    (tfidf_index, "tf-idf"),
+    (chroma_index, "chroma")
 ]
 
 

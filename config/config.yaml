@@ -11,7 +11,7 @@ input:
 # Available strategies: ast (python syntax) | window (split every chunk_size) | langchain_{python|markdown|text}
 chunking:
   .py:
-    method: langchain_python
+    method: ast
     save_path: data/processed/chunks/
   .md:
     method: langchain_markdown
@@ -24,19 +24,19 @@ chunking:
 # Multiple strategies can be selected. The score used for chunks would then be the sum of both scores.
 retrieval:
   tf-idf:
-    active: false
+    active: true
     save_path: data/processed/tf-idf
   bm25:
     active: true
-    save_path: data/processed/bm25_index/
+    save_path: data/processed/bm25/
   chroma:
-    active: false
+    active: true
     save_path: data/processed/chroma/
 
 
 search:
   auto-translate: false
-  
+
 
 # Specifies which model to use for generation. Also specifies the maximum context length.
 # The context length cannot be more than 10 000.
