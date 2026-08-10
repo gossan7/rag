@@ -16,8 +16,9 @@ class RagCLI:
     def search(self, msg: str = "feur") -> None:
         print(self.config, msg, sep='\n')
 
-    def index(self, max_chunk_length: int = 2000) -> None:
-        chunks = create_chunks(self.config, max_chunk_length)
-        # for ext in chunks:
-        #     for chunk in chunks[ext]:
-        #         print(chunk)
+    def index(self, max_chunk_size: int = 2000) -> None:
+        if not 1 <= max_chunk_size <= 2000:
+            raise ValueError(
+                "max_chunk_size must be between 1 and 2000"
+            )
+        create_chunks(self.config, max_chunk_size)

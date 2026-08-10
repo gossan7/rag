@@ -20,7 +20,7 @@ chunking:
     method: langchain_text
     save_path: data/processed/chunks/
 
-# Specifies which retrival strategy is used on commands.
+# Specifies which retrival strategy is used.
 # Multiple strategies can be selected. The score used for chunks would then be the sum of both scores.
 retrieval:
   tf-idf:
@@ -30,8 +30,13 @@ retrieval:
     active: true
     save_path: data/processed/bm25_index/
   chroma:
-    active: true
+    active: false
     save_path: data/processed/chroma/
+
+
+search:
+  auto-translate: false
+  
 
 # Specifies which model to use for generation. Also specifies the maximum context length.
 # The context length cannot be more than 10 000.

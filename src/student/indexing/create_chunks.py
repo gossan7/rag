@@ -20,17 +20,17 @@ def line_offsets(content: str) -> list[int]:
 
 def window_chunk(
     files: Dict[str, str],
-    max_chunk_length: int,
+    max_chunk_size: int,
 ) -> List[MinimalSource]:
     chunks: List[MinimalSource] = []
     for path, content in files.items():
         file_length = len(content)
-        for i in range(0, file_length, max_chunk_length):
+        for i in range(0, file_length, max_chunk_size):
             chunks.append(MinimalSource(
                 file_path=path,
                 first_character_index=i,
                 last_character_index=min(
-                    i + max_chunk_length,
+                    i + max_chunk_size,
                     file_length
                 )
             ))
@@ -42,7 +42,7 @@ def create_ast_chunk(
         node: ast.stmt,
         path: str,
         offsets: List[int],
-        max_chunk_length: int,
+        max_chunk_size: int,
         content: str
 ) -> None:
     start = offsets[node.lineno - 1]
@@ -52,19 +52,26 @@ def create_ast_chunk(
         end = len(content)
 
     pos = start
-    while pos < end > max_chunk_length:
-        current_end = min(pos + max_chunk_length, end)
-        chunks.append(MinimalSource(
-            file_path=path,
-            first_character_index=pos,
-            last_character_index=current_end
-        ))
+    while pos < end:
+        current_end = min(
+            pos + max_chunk_size,
+            end,
+        )
+
+        chunks.append(
+            MinimalSource(
+                file_path=path,
+                first_character_index=pos,
+                last_character_index=current_end,
+            )
+        )
+
         pos = current_end
 
 
 def ast_chunk(
     files: Dict[str, str],
-    max_chunk_length: int,
+    max_chunk_size: int,
 ) -> List[MinimalSource]:
     chunks: List[MinimalSource] = []
     for path, content in files.items():
@@ -78,7 +85,7 @@ def ast_chunk(
                         item,
                         path,
                         offsets,
-                        max_chunk_length,
+                        max_chunk_size,
                         content
                     )
             else:
@@ -87,7 +94,7 @@ def ast_chunk(
                     node,
                     path,
                     offsets,
-                    max_chunk_length,
+                    max_chunk_size,
                     content
                 )
     return chunks
@@ -95,15 +102,16 @@ def ast_chunk(
 
 def langchain_language_chunk(
     files: Dict[str, str],
-    max_chunk_length: int,
+    max_chunk_size: int,
     language: Language
 ) -> List[MinimalSource]:
     chunks: List[MinimalSource] = []
+    chunk_overlap = min(100, max_chunk_size // 10)
 
     splitter = RecursiveCharacterTextSplitter.from_language(
         language=language,
-        chunk_size=max_chunk_length,
-        chunk_overlap=100,
+        chunk_size=max_chunk_size,
+        chunk_overlap=chunk_overlap,
         add_start_index=True
     )
 
@@ -112,6 +120,7 @@ def langchain_language_chunk(
         for doc in documents:
             start = doc.metadata["start_index"]
             end = start + len(doc.page_content)
+            assert files[path][start:end] == doc.page_content
             chunks.append(MinimalSource(
                 file_path=path,
                 first_character_index=start,
@@ -123,34 +132,37 @@ def langchain_language_chunk(
 
 def langchain_python_chunk(
     files: Dict[str, str],
-    max_chunk_length: int,
+    max_chunk_size: int,
 ) -> List[MinimalSource]:
     return langchain_language_chunk(
         files=files,
-        max_chunk_length=max_chunk_length,
+        max_chunk_size=max_chunk_size,
         language=Language.PYTHON
     )
 
 
 def langchain_markdown_chunk(
     files: Dict[str, str],
-    max_chunk_length: int,
+    max_chunk_size: int,
 ) -> List[MinimalSource]:
     return langchain_language_chunk(
         files=files,
-        max_chunk_length=max_chunk_length,
+        max_chunk_size=max_chunk_size,
         language=Language.MARKDOWN
     )
 
+
 def langchain_text_chunk(
     files: Dict[str, str],
-    max_chunk_length: int,
+    max_chunk_size: int,
 ) -> List[MinimalSource]:
     chunks: List[MinimalSource] = []
 
+    chunk_overlap = min(100, max_chunk_size // 10)
+
     splitter = RecursiveCharacterTextSplitter(
-        chunk_size=max_chunk_length,
-        chunk_overlap=100,
+        chunk_size=max_chunk_size,
+        chunk_overlap=chunk_overlap,
         add_start_index=True
     )
 
@@ -159,6 +171,7 @@ def langchain_text_chunk(
         for doc in documents:
             start = doc.metadata["start_index"]
             end = start + len(doc.page_content)
+            assert files[path][start:end] == doc.page_content
             chunks.append(MinimalSource(
                 file_path=path,
                 first_character_index=start,
@@ -184,14 +197,14 @@ INDEXING = [
 
 def create_chunks(
     config: Dict[str, Any],
-    max_chunk_length: int
+    max_chunk_size: int
 ) -> Dict[str, List[MinimalSource]]:
     files = load_files(config)
     chunks: Dict[str, List[MinimalSource]] = {}
     for extension in files:
         chunks[extension] = CHUNKING[config["chunking"][extension]["method"]](
             files[extension],
-            max_chunk_length,
+            max_chunk_size,
         )
 
         for func, name in INDEXING:

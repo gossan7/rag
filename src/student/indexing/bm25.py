@@ -22,4 +22,6 @@ def bm25_index(
     retriever = bm25s.BM25()
     tokenized = bm25s.tokenize(text_chunks)
     retriever.index(tokenized)
-    retriever.save(f"{retrieval_config["save_path"]}{extension[1:]}")
+    retriever.save(
+        f"{retrieval_config['save_path']}{extension[1:]}"
+    )
