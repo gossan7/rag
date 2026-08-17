@@ -17,8 +17,10 @@ lint:
 clean:
 	rm -rf .mypy_cache
 	rm -rf src/rag.egg-info/
-	rm -rf data/processed
 	find . -type f -name '*.py[co]' -delete -o -type d -name __pycache__ -delete
 
-fclean: clean
+dclean:
+	rm -rf data/processed/
+
+fclean: clean dclean
 	@rm -rf .venv

@@ -216,43 +216,36 @@ INDEXING = [
 ]
 
 
-def create_chunks(
-    config: Dict[str, Any],
-    max_chunk_size: int
-) -> Dict[str, List[MinimalSource]]:
+def create_chunks(config: Dict[str, Any], max_chunk_size: int) -> None:
     files = load_files(config)
-    chunks: Dict[str, List[MinimalSource]] = {}
+    chunks: List[MinimalSource] = []
     for extension in files:
-        chunks[extension] = CHUNKING[config["chunking"][extension]["method"]](
+        curr_chunks = CHUNKING[config["chunking"][extension]["method"]](
             files[extension],
             max_chunk_size,
         )
+        chunks.extend(curr_chunks)
 
         for func, name in INDEXING:
             func(
-                chunks=chunks[extension],
+                chunks=curr_chunks,
                 files=files[extension],
-                retrieval_config=config["retrieval"][name],
-                extension=extension
+                indexing_config=config["indexing"][name],
             )
 
-        json_file = config["chunking"][extension]["save_path"] + \
-            extension[1:] + ".json"
+    json_file = config["chunking"]["save_path"]
+    Path(json_file).parent.mkdir(parents=True, exist_ok=True)
 
-        Path(json_file).parent.mkdir(parents=True, exist_ok=True)
-
-        with open(json_file, "w", encoding="utf-8") as f:
-            json.dump(
-                [
-                    {
-                        "file_path": chunk.file_path,
-                        "first_character_index": chunk.first_character_index,
-                        "last_character_index": chunk.last_character_index
-                    }
-                    for chunk in chunks[extension]
-                ],
-                f,
-                indent=2
-            )
-
-    return chunks
+    with open(json_file, "w", encoding="utf-8") as f:
+        json.dump(
+            [
+                {
+                    "file_path": chunk.file_path,
+                    "first_character_index": chunk.first_character_index,
+                    "last_character_index": chunk.last_character_index
+                }
+                for chunk in chunks
+            ],
+            f,
+            indent=2
+        )

@@ -12,10 +12,9 @@ from ..structures import MinimalSource
 def bm25_index(
     chunks: List[MinimalSource],
     files: Dict[str, str],
-    retrieval_config: Dict[str, bool | str],
-    extension: str
+    indexing_config: Dict[str, bool | str],
 ) -> None:
-    if retrieval_config["active"] is False:
+    if indexing_config["active"] is False:
         return
 
     text_chunks = [
@@ -28,8 +27,7 @@ def bm25_index(
         return
 
     save_path = (
-        Path(str(retrieval_config["save_path"]))
-        / extension.lstrip(".")
+        Path(str(indexing_config["save_path"]))
     )
 
     save_path.mkdir(
@@ -41,17 +39,16 @@ def bm25_index(
     tokenized = bm25s.tokenize(text_chunks)
     retriever.index(tokenized)
     retriever.save(
-        f"{retrieval_config['save_path']}{extension[1:]}"
+        indexing_config['save_path']
     )
 
 
 def tfidf_index(
     chunks: List[MinimalSource],
     files: Dict[str, str],
-    retrieval_config: Dict[str, bool | str],
-    extension: str,
+    indexing_config: Dict[str, bool | str],
 ) -> None:
-    if retrieval_config["active"] is False:
+    if indexing_config["active"] is False:
         return
 
     text_chunks = [
@@ -72,8 +69,7 @@ def tfidf_index(
     matrix = vectorizer.fit_transform(text_chunks)
 
     save_path = (
-        Path(str(retrieval_config["save_path"]))
-        / extension[1:]
+        Path(str(indexing_config["save_path"]))
     )
 
     save_path.mkdir(
@@ -95,15 +91,13 @@ def tfidf_index(
 def chroma_index(
     chunks: List[MinimalSource],
     files: Dict[str, str],
-    retrieval_config: Dict[str, bool | str],
-    extension: str,
+    indexing_config: Dict[str, bool | str],
 ) -> None:
-    if retrieval_config["active"] is False:
+    if indexing_config["active"] is False:
         return
 
     save_path = (
-        Path(str(retrieval_config["save_path"]))
-        / extension.lstrip(".")
+        Path(str(indexing_config["save_path"]))
     )
 
     save_path.mkdir(
@@ -132,19 +126,7 @@ def chroma_index(
         for index in range(len(chunks))
     ]
 
-    metadatas = [
-        {
-            "file_path": source.file_path,
-            "first_character_index":
-                source.first_character_index,
-            "last_character_index":
-                source.last_character_index,
-        }
-        for source in chunks
-    ]
-
     collection.add(
         ids=ids,
-        documents=documents,
-        metadatas=metadatas,
+        documents=documents
     )

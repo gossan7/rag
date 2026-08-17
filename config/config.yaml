@@ -10,19 +10,18 @@ input:
 # Specifies the chunking strategy for each handled type
 # Available strategies: ast (python syntax) | window (split every chunk_size) | langchain_{python|markdown|text}
 chunking:
-  .py:
-    method: ast
-    save_path: data/processed/chunks/
-  .md:
-    method: langchain_markdown
-    save_path: data/processed/chunks/
-  .txt:
-    method: langchain_text
-    save_path: data/processed/chunks/
+  save_path: data/processed/chunks/chunks.json
+  extensions:
+    .py:
+      method: ast
+    .md:
+      method: langchain_markdown
+    .txt:
+      method: langchain_text
 
 # Specifies which retrival strategy is used.
 # Multiple strategies can be selected. The score used for chunks would then be the sum of both scores.
-retrieval:
+indexing:
   tf-idf:
     active: true
     save_path: data/processed/tf-idf
@@ -30,10 +29,11 @@ retrieval:
     active: true
     save_path: data/processed/bm25/
   chroma:
-    active: true
+    active: false
     save_path: data/processed/chroma/
 
-
+# Enables auto-translate in english for queries. Can make results worse if precise words are needed.
+# If enabled and the query is already in english, nothing will be made.
 search:
   auto-translate: false
 
