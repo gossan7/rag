@@ -19,7 +19,7 @@ indexing:
       enabled: true
     .md:
       chunking_method: "langchain"
-      enabled: true
+      enabled: false
     .txt:
       chunking_method: "langchain"
       enabled: true

@@ -6,7 +6,7 @@ ARGS		?=
 
 
 run:
-	$(PYTHON) -m student index $(ARGS)
+	$(PYTHON) -m src index $(ARGS)
 
 install:
 	$(UV) sync
