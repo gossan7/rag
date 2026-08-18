@@ -23,4 +23,4 @@ dclean:
 	rm -rf data/processed/
 
 fclean: clean dclean
-	@rm -rf .venv
+	rm -rf .venv

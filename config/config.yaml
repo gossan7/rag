@@ -1,45 +1,50 @@
 # Config for RagCLI
 
-# Specifies path for files to read and process. Also specifies handled types.
-# Available types: .py | .md | .txt
-input:
-  path: data/raw
-  extensions: [.py, .md, .txt]
-  excludes: [__pycache__, .git, .venv]
+# Specifies path for: files to process, directory to save index, datasets, and output.
+# Do not change unless you know what you're doing
+paths:
+  raw: "data/raw"
+  processed: "data/processed"
+  datasets: "data/datasets"
+  output: "data/output"
 
-# Specifies the chunking strategy for each handled type
-# Available strategies: ast (python syntax) | window (split every chunk_size) | langchain_{python|markdown|text}
-chunking:
-  save_path: data/processed/chunks/chunks.json
-  extensions:
-    .py:
-      method: ast
-    .md:
-      method: langchain_markdown
-    .txt:
-      method: langchain_text
 
-# Specifies which retrival strategy is used.
-# Multiple strategies can be selected. The score used for chunks would then be the sum of both scores.
+# Specifies which file types will be processed, which directories to exclude, and which chunking method is used.
+# Available types are: .py, .md, .txt
 indexing:
-  tf-idf:
-    active: true
-    save_path: data/processed/tf-idf
-  bm25:
-    active: true
-    save_path: data/processed/bm25/
-  chroma:
-    active: false
-    save_path: data/processed/chroma/
+  excludes: [__pycache__, .git, .venv]
+  file_types:
+    .py:
+      chunking_method: "ast"
+      enabled: true
+    .md:
+      chunking_method: "langchain"
+      enabled: true
+    .txt:
+      chunking_method: "langchain"
+      enabled: true
+
+
+# Specifies which backend will be used for both indexing and searching.
+# Multiple backends can be enabled. The score used for search would then be the sum of each normalized scores.
+retrieval:
+  backends:
+    tfidf:
+      enabled: true
+    bm25:
+      enabled: false
+    chroma:
+      enabled: false
+
 
 # Enables auto-translate in english for queries. Can make results worse if precise words are needed.
 # If enabled and the query is already in english, nothing will be made.
 search:
-  auto-translate: false
+  auto_translate: false
 
 
 # Specifies which model to use for generation. Also specifies the maximum context length.
-# The context length cannot be more than 10 000.
-generation:
+# The context length cannot be more than 20 000.
+answer:
   model_name: Qwen/Qwen3-0.6B
-  max_context_length: 5000
+  max_context_length: 10000
