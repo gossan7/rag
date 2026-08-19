@@ -31,10 +31,13 @@ retrieval:
   backends:
     tfidf:
       enabled: true
+      weight: 1.0
     bm25:
       enabled: false
+      weight: 1.0
     chroma:
       enabled: false
+      weight: 1.0
 
 
 # Enables auto-translate in english for queries. Can make results worse if precise words are needed.

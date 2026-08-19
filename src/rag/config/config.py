@@ -5,41 +5,46 @@ from pathlib import Path
 from ..enums import FileType, ChunkingMethod, Backend
 
 
-class PathsConfig(BaseModel):
+class BaseConfig(BaseModel):
+    pass
+
+
+class FileTypeConfig(BaseConfig):
+    chunking_method: ChunkingMethod
+    enabled: bool
+
+
+class BackendConfig(BaseConfig):
+    enabled: bool
+    weight: float
+
+
+class PathsConfig(BaseConfig):
     raw: Path
     processed: Path
     datasets: Path
     output: Path
 
 
-class FileTypeConfig(BaseModel):
-    chunking_method: ChunkingMethod
-    enabled: bool
-
-
-class BackendConfig(BaseModel):
-    enabled: bool
-
-
-class IndexingConfig(BaseModel):
+class IndexingConfig(BaseConfig):
     excludes: Set[str]
     file_types: Dict[FileType, FileTypeConfig]
 
 
-class RetrievalConfig(BaseModel):
+class RetrievalConfig(BaseConfig):
     backends: Dict[Backend, BackendConfig]
 
 
-class SearchConfig(BaseModel):
+class SearchConfig(BaseConfig):
     auto_translate: bool
 
 
-class AnswerConfig(BaseModel):
+class AnswerConfig(BaseConfig):
     model_name: str
     max_context_length: int
 
 
-class Config(BaseModel):
+class Config(BaseConfig):
     paths: PathsConfig
     indexing: IndexingConfig
     retrieval: RetrievalConfig

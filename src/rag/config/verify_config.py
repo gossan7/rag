@@ -21,9 +21,9 @@ SCHEMA = {
 
     "retrieval": {
         "backends": {
-            "tfidf": {"enabled": False},
-            "bm25": {"enabled": False},
-            "chroma": {"enabled": False}
+            "tfidf": {"enabled": False, "weight": 1.0},
+            "bm25": {"enabled": False, "weight": 1.0},
+            "chroma": {"enabled": False, "weight": 1.0}
         }
     },
 
