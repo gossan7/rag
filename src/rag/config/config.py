@@ -45,6 +45,7 @@ class AnswerConfig(BaseConfig):
 
 
 class Config(BaseConfig):
+    
     paths: PathsConfig
     indexing: IndexingConfig
     retrieval: RetrievalConfig

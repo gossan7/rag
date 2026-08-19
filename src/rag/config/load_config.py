@@ -4,6 +4,7 @@ import yaml
 from ..errors import ConfigError
 from .config import Config
 from .verify_config import verify_config_schema
+from .config_facotry import ConfigFactory
 
 
 CONFIG_DIR = "config/"
@@ -24,11 +25,16 @@ def load_config(file_path: str = "default.yaml") -> Config:
         raise ConfigError(f"Could not open \'{file_path}\': {e}")
 
     try:
-        verify_config_schema(
-            raw_config=raw_config
-        )
+        verify_config_schema(raw_config=raw_config)
     except ConfigError as e:
         raise ConfigError(f"Config file \'{file_path}\' malformed:\n{e}")
+
+    try:
+        config = ConfigFactory.create(raw_config=raw_config)
+    except ConfigError as e:
+        raise ConfigError(f"Config file \'{file_path}\' maflormed:\n{e}")
+
+    return config
 
 
 if __name__ == "__main__":
