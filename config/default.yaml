@@ -3,7 +3,7 @@
 # Specifies path for: files to process, directory to save index, datasets, and output.
 # Do not change unless you know what you're doing
 paths:
-  raw: "data/raw"
+  raw: "data/raw/"
   processed: "data/processed"
   datasets: "data/datasets"
   output: "data/output"
@@ -19,21 +19,21 @@ indexing:
       enabled: true
     .md:
       chunking_method: "langchain"
-      enabled: false
+      enabled: true
     .txt:
       chunking_method: "langchain"
       enabled: true
 
 
 # Specifies which backend will be used for both indexing and searching.
-# Multiple backends can be enabled. The score used for search would then be the sum of each normalized scores.
+# Multiple backends can be enabled. The score used for search would then be the weighted sum of each normalized scores.
 retrieval:
   backends:
     tfidf:
       enabled: true
       weight: 1.0
     bm25:
-      enabled: false
+      enabled: true
       weight: 1.0
     chroma:
       enabled: false
