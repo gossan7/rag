@@ -11,7 +11,7 @@ class RagCLI:
         except Exception as e:
             raise Exception(
                 f"An error has occured during config reading / loading.\n{e}"
-            )
+            ) from e
 
     def search(self, msg: str = "feur") -> None:
         print(self.config, msg, sep='\n')

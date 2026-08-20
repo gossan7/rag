@@ -1,2 +1,2 @@
-class RagError(BaseException):
+class RagError(Exception):
     pass

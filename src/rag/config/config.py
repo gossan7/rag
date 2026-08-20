@@ -1,14 +1,12 @@
-from typing import Dict, Set
-from pydantic import BaseModel, model_validator
 from pathlib import Path
-from huggingface_hub import repo_exists
 
-from ..errors import ConfigError
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
 from ..enums import FileType, ChunkingMethod, Backend
 
 
 class BaseConfig(BaseModel):
-    pass
+    model_config = ConfigDict(extra="forbid")
 
 
 class FileTypeConfig(BaseConfig):
@@ -18,15 +16,7 @@ class FileTypeConfig(BaseConfig):
 
 class BackendConfig(BaseConfig):
     enabled: bool
-    weight: float
-
-    @model_validator(mode="after")
-    def validate_config(self) -> "BackendConfig":
-        if self.enabled and self.weight <= 0.0:
-            raise ConfigError(
-                "Backend weight should be more that 0.0 if enabled"
-            )
-        return self
+    weight: float = Field(gt=0.0, le=1.0)
 
 
 class PathsConfig(BaseConfig):
@@ -38,33 +28,33 @@ class PathsConfig(BaseConfig):
     @model_validator(mode="after")
     def validate_config(self) -> "PathsConfig":
         for path in (self.raw, self.processed, self.datasets, self.output):
-            if path.is_file():
-                raise ConfigError(
+            if path.exists() and not path.is_dir():
+                raise ValueError(
                     f"Path is not a directory: {path}"
                 )
         return self
 
 
 class IndexingConfig(BaseConfig):
-    excludes: Set[str]
-    file_types: Dict[FileType, FileTypeConfig]
+    excludes: set[str]
+    file_types: dict[FileType, FileTypeConfig]
 
     @model_validator(mode="after")
     def validate_config(self) -> "IndexingConfig":
-        if all((not ftype.enabled for ftype in self.file_types.values())):
-            raise ConfigError(
+        if not any((ftype.enabled for ftype in self.file_types.values())):
+            raise ValueError(
                 "At least one file type should be enabled"
             )
         return self
 
 
 class RetrievalConfig(BaseConfig):
-    backends: Dict[Backend, BackendConfig]
+    backends: dict[Backend, BackendConfig]
 
     @model_validator(mode="after")
     def validate_config(self) -> "RetrievalConfig":
-        if all((not backend.enabled for backend in self.backends.values())):
-            raise ConfigError(
+        if not any((backend.enabled for backend in self.backends.values())):
+            raise ValueError(
                 "At least one retrieval backend should be enabled"
             )
         return self
@@ -75,20 +65,8 @@ class SearchConfig(BaseConfig):
 
 
 class AnswerConfig(BaseConfig):
-    model_name: str
-    max_context_length: int
-
-    @model_validator(mode="after")
-    def validate_config(self) -> "AnswerConfig":
-        if not repo_exists(self.model_name):
-            raise ConfigError(
-                f"Model name \'{self.model_name}\' does not exist."
-            )
-        if not 2000 <= self.max_context_length <= 20000:
-            raise ConfigError(
-                "max_context_length should be >= 2000, <= 20000"
-            )
-        return self
+    model_name: str = Field(min_length=3, max_length=50)
+    max_context_length: int = Field(ge=2000, le=20000)
 
 
 class Config(BaseConfig):
