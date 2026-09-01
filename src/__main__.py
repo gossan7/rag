@@ -1,5 +1,6 @@
-from rag.errors import RagError
-from rag.config.load_config import load_config
+from .rag.errors import RagError
+from .rag.config.load_config import load_config
+from .rag.indexing.load_files import iter_files
 
 # import fire
 # from .rag_cli import RagCLI
@@ -7,7 +8,11 @@ from rag.config.load_config import load_config
 
 if __name__ == "__main__":
     try:
-        load_config()
+        config = load_config()
+        gen = iter_files(config)
+
+        ext, first_path, first_content = next(gen)
+        print(ext, first_path, first_content[:min(len(first_content), 100)], sep="\n")
     except RagError as e:
         print(e)
     # try:

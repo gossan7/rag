@@ -45,6 +45,12 @@ class IndexingConfig(BaseConfig):
             raise ValueError(
                 "At least one file type should be enabled"
             )
+        if any((ftype.chunking_method == ChunkingMethod.AST
+                for key, ftype in self.file_types.items()
+                if key != FileType.PYTHON)):
+            raise ValueError(
+                "Chunking method 'ast' can only be used with .py files"
+            )
         return self
 
 

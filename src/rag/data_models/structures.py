@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 import uuid
 
 
@@ -6,6 +6,15 @@ class MinimalSource(BaseModel):
     file_path: str
     first_character_index: int
     last_character_index: int
+
+    @model_validator(mode="after")
+    def validate_source(self) -> "MinimalSource":
+        if self.first_character_index <= self.last_character_index:
+            raise ValueError(
+                "MinimalSource invalid: first_character_index" +
+                " should be < last_character_index"
+            )
+        return self
 
 
 class UnansweredQuestion(BaseModel):
