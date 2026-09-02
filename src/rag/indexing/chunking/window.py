@@ -1,10 +1,8 @@
-from ...config import Config
 from ...aliases import FileData
 from ...data_models import MinimalSource
 
 
 def window_chunk(
-    config: Config,
     file_data: FileData,
     max_chunk_size: int = 2000
 ) -> list[MinimalSource]:

@@ -11,9 +11,9 @@ from .structures import (
 
 from .helpers import (
     get_source_size,
-    can_merge,
-    get_merged_source_size,
-    merge_sources
+    can_merge_sources,
+    merge_sources,
+    get_merged_source_size
 )
 
 __all__ = [
@@ -26,7 +26,7 @@ __all__ = [
     "StudentSearchResults",
     "StudentSearchResultsAndAnswer",
     "get_source_size",
-    "can_merge",
-    "get_merged_source_size",
-    "merge_sources"
+    "can_merge_sources",
+    "merge_sources",
+    "get_merged_source_size"
 ]

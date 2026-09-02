@@ -1,6 +1,5 @@
 from langchain_text_splitters import RecursiveCharacterTextSplitter, Language
 
-from ...config import Config
 from ...aliases import FileData
 from ...enums import FileType
 from ...data_models import MinimalSource
@@ -14,7 +13,6 @@ LANGUAGE: dict[FileType, Language | None] = {
 
 
 def langchain_chunk(
-    config: Config,
     file_data: FileData,
     max_chunk_size: int = 2000
 ) -> list[MinimalSource]:

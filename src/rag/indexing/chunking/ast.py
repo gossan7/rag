@@ -1,22 +1,43 @@
 import ast
 
-from ...config import Config
+from typing import Protocol, cast
+
 from ...aliases import FileData
-from ...data_models import MinimalSource
+from ...data_models import (
+    MinimalSource,
+    can_merge_sources,
+    merge_sources,
+    get_merged_source_size
+)
 
 
-def get_boundaries(node: ast.stmt, offsets: list[int]):
-    assert node.end_lineno is not None
-    assert node.end_col_offset is not None
+class LocatedNode(Protocol):
+    lineno: int
+    col_offset: int
+    end_lineno: int
+    end_col_offset: int
+
+
+def is_located(node: ast.AST) -> bool:
+    return (
+        isinstance(getattr(node, "lineno", None), int)
+        and isinstance(getattr(node, "col_offset", None), int)
+        and isinstance(getattr(node, "end_lineno", None), int)
+        and isinstance(getattr(node, "end_col_offset", None), int)
+    )
+
+
+def get_boundaries(node: ast.AST, offsets: list[int]):
+    located = cast(LocatedNode, node)
 
     return (
-        offsets[node.lineno] + node.col_offset,
-        offsets[node.end_lineno] + node.end_col_offset
+        offsets[located.lineno] + located.col_offset,
+        offsets[located.end_lineno] + located.end_col_offset
     )
 
 
 def recursive_ast_chunk(
-    node: ast.stmt | ast.Module,
+    node: ast.AST,
     offsets: list[int],
     d_chunks: list[tuple[int, MinimalSource]],
     file_content: str,
@@ -27,21 +48,22 @@ def recursive_ast_chunk(
     prev_end: int,
     depth: int
 ) -> None:
-    children = [
+    children: list[ast.AST] = [
         child for child in ast.iter_child_nodes(node)
-        if isinstance(child, ast.stmt)
+        if is_located(child)
     ]
-    children.sort(key=lambda x: get_boundaries(x, offsets))
+    children.sort(key=lambda child: get_boundaries(child, offsets))
 
     if not children:
         if isinstance(node, ast.Module):
             start = 0
             end = file_length
         else:
-            start = offsets[node.lineno] + node.col_offset
-            end = offsets[node.end_lineno] + node.end_col_offset \
-                if node.end_lineno is not None \
-                and node.end_col_offset is not None \
+            located = cast(LocatedNode, node)
+            start = offsets[located.lineno] + located.col_offset
+            end = offsets[located.end_lineno] + located.end_col_offset \
+                if located.end_lineno is not None \
+                and located.end_col_offset is not None \
                 else file_length
 
         for first_char_idx in range(start, end, max_chunk_size):
@@ -56,9 +78,6 @@ def recursive_ast_chunk(
 
     prev = prev_start
     for child in children:
-        assert child.end_lineno is not None
-        assert child.end_col_offset is not None
-
         start, end = get_boundaries(child, offsets)
 
         if start - prev > 0 and file_content[prev:start].strip():
@@ -100,7 +119,6 @@ def line_offsets(content: str) -> list[int]:
 
 
 def ast_chunk(
-    config: Config,
     file_data: FileData,
     max_chunk_size: int = 2000
 ) -> list[MinimalSource]:
@@ -125,8 +143,25 @@ def ast_chunk(
     )
 
     merged: list[tuple[int, MinimalSource]] = []
-    for depth, source in reversed(enumerate(d_chunks)):
+    for depth, source in d_chunks:
         if not merged:
             merged.append((depth, source))
+            continue
 
-    return d_chunks  # [source for _, source in d_chunks]
+        prev_depth, prev_source = merged[-1]
+        if prev_depth <= depth \
+                and get_merged_source_size(prev_source, source) <= max_chunk_size:
+            merged[-1] = (prev_depth, merge_sources(prev_source, source))
+
+        else:
+            merged.append((depth, source))
+
+    return merged  # [source for _, source in d_chunks]
+
+
+if __name__ == "__name__":
+    with open("ast.py") as f:
+        ast_chunk(
+            (None, "foo.py", f.read()),
+            2000
+        )

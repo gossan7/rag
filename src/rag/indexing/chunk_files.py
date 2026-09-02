@@ -6,7 +6,7 @@ from ..enums import ChunkingMethod
 from ..data_models import MinimalSource
 from .chunking import window_chunk, langchain_chunk, ast_chunk
 
-Chunker: TypeAlias = Callable[[Config, FileData, int], list[MinimalSource]]
+Chunker: TypeAlias = Callable[[FileData, int], list[MinimalSource]]
 
 
 DEFAULT_MIN_CHUNK_SIZE = 400
@@ -23,4 +23,4 @@ def chunk_file(
 ) -> list[MinimalSource]:
     ext, _, _ = file_data
     chunking_method = config.indexing.file_types[ext].chunking_method
-    return CHUNKING[chunking_method](config, file_data, max_chunk_size)
+    return CHUNKING[chunking_method](file_data, max_chunk_size)
