@@ -6,19 +6,7 @@ def get_source_size(source: MinimalSource) -> int:
 
 
 def can_merge(source1: MinimalSource, source2: MinimalSource) -> bool:
-    if source1.file_path != source2.file_path:
-        return False
-
-    down_chunk_start = max(
-        source1.first_character_index, source2.first_character_index
-    )
-    up_chunk_end = min(
-        source1.last_character_index, source2.last_character_index
-    )
-    if up_chunk_end < down_chunk_start:
-        return False
-
-    return True
+    return source1.file_path != source2.file_path
 
 
 def get_merged_source_size(
