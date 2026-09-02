@@ -23,9 +23,9 @@ if __name__ == "__main__":
             start = chunk.first_character_index
             end = chunk.last_character_index
             print(
-                f"chunk n{i}, depth{depth}:\n",
+                f"chunk n{i}, depth{depth}, len{end-start}\n",
                 file_content[start:end],
-                "\n\n",
+                "\n\n\n\n\n",
                 sep="\n"
             )
 

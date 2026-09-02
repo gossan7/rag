@@ -18,6 +18,19 @@ class LocatedNode(Protocol):
     end_col_offset: int
 
 
+def has_statement_body(node: ast.AST) -> bool:
+    for _, value in ast.iter_fields(node):
+        if isinstance(value, list) \
+                and any(isinstance(item, ast.stmt) for item in value):
+            return True
+
+    return False
+
+
+def is_structural(node: ast.AST) -> bool:
+    return isinstance(node, ast.stmt) or has_statement_body(node)
+
+
 def is_located(node: ast.AST) -> bool:
     return (
         isinstance(getattr(node, "lineno", None), int)
@@ -50,7 +63,7 @@ def recursive_ast_chunk(
 ) -> None:
     children: list[ast.AST] = [
         child for child in ast.iter_child_nodes(node)
-        if is_located(child)
+        if is_located(child) and is_structural(child)
     ]
     children.sort(key=lambda child: get_boundaries(child, offsets))
 
@@ -149,7 +162,7 @@ def ast_chunk(
             continue
 
         prev_depth, prev_source = merged[-1]
-        if prev_depth <= depth \
+        if prev_depth < depth \
                 and get_merged_source_size(prev_source, source) <= max_chunk_size:
             merged[-1] = (prev_depth, merge_sources(prev_source, source))
 
