@@ -5,7 +5,6 @@ from typing import Protocol, cast
 from ...aliases import FileData
 from ...data_models import (
     MinimalSource,
-    can_merge_sources,
     merge_sources,
     get_merged_source_size
 )
@@ -59,26 +58,21 @@ def recursive_ast_chunk(
     file_path: str,
     prev_start: int,
     prev_end: int,
-    depth: int
+    depth: int,
+    stick_gap: bool
 ) -> None:
+    if isinstance(node, ast.Module):
+        start, end = 0, file_length
+    else:
+        start, end = get_boundaries(node, offsets)
+
     children: list[ast.AST] = [
         child for child in ast.iter_child_nodes(node)
         if is_located(child) and is_structural(child)
     ]
     children.sort(key=lambda child: get_boundaries(child, offsets))
 
-    if not children:
-        if isinstance(node, ast.Module):
-            start = 0
-            end = file_length
-        else:
-            located = cast(LocatedNode, node)
-            start = offsets[located.lineno] + located.col_offset
-            end = offsets[located.end_lineno] + located.end_col_offset \
-                if located.end_lineno is not None \
-                and located.end_col_offset is not None \
-                else file_length
-
+    if not children or end - start <= max_chunk_size:
         for first_char_idx in range(start, end, max_chunk_size):
             last_char_idx = min(first_char_idx + max_chunk_size, end)
             print(first_char_idx, last_char_idx)
@@ -90,15 +84,16 @@ def recursive_ast_chunk(
         return
 
     prev = prev_start
-    for child in children:
+    for i, child in enumerate(children):
         start, end = get_boundaries(child, offsets)
 
         if start - prev > 0 and file_content[prev:start].strip():
-            d_chunks.append((depth, MinimalSource(
-                file_path=file_path,
-                first_character_index=prev,
-                last_character_index=start
-            )))
+            # d_chunks.append((depth, MinimalSource(
+            #     file_path=file_path,
+            #     first_character_index=prev,
+            #     last_character_index=start
+            # )))
+            stick_gap = True
 
         recursive_ast_chunk(
             node=child,
@@ -110,7 +105,8 @@ def recursive_ast_chunk(
             file_path=file_path,
             prev_start=start,
             prev_end=end,
-            depth=depth+1
+            depth=depth+1,
+            stick_gap=stick_gap
         )
 
         prev = end
@@ -152,24 +148,41 @@ def ast_chunk(
         file_path=file_path,
         prev_start=0,
         prev_end=file_length,
-        depth=0
+        depth=0,
+        stick_gap=False
     )
 
     merged: list[tuple[int, MinimalSource]] = []
-    for depth, source in d_chunks:
-        if not merged:
-            merged.append((depth, source))
-            continue
+    i = 0
+    while i < len(d_chunks):
+        depth, source = d_chunks[i]
+        best = i
+        for j in range(i + 1, len(d_chunks)):
+            c_depth, c_source = d_chunks[j]
+            if get_merged_source_size(source, c_source) > max_chunk_size:
+                break
+            if c_depth == depth:
+                break
+            if c_depth == depth + 1:
+                best = j
+        merged.append((depth, merge_sources(source, d_chunks[best][1])))
+        i = best + 1
 
-        prev_depth, prev_source = merged[-1]
-        if prev_depth < depth \
-                and get_merged_source_size(prev_source, source) <= max_chunk_size:
-            merged[-1] = (prev_depth, merge_sources(prev_source, source))
+    chunks: list[MinimalSource] = []
+    i = 0
+    while i < len(merged):
+        depth, source = merged[i]
+        best = i
+        for j in range(i + 1, len(merged)):
+            c_depth, c_source = merged[j]
+            if get_merged_source_size(source, c_source) > max_chunk_size:
+                break
+            if c_depth == depth:
+                best = j
+        chunks.append(merge_sources(source, merged[best][1]))
+        i = best + 1
 
-        else:
-            merged.append((depth, source))
-
-    return merged  # [source for _, source in d_chunks]
+    return chunks
 
 
 if __name__ == "__name__":

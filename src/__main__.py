@@ -13,17 +13,25 @@ if __name__ == "__main__":
         gen = iter_files(config)
 
         fdata = next(gen)
-        fdata = next(gen)
-        fdata = next(gen)
         chunks = chunk_file(config, fdata, 2000)
 
         ext, file_path, file_content = fdata
 
-        for i, (depth, chunk) in enumerate(chunks):
+        # for i, (depth, chunk) in enumerate(chunks):
+        #     start = chunk.first_character_index
+        #     end = chunk.last_character_index
+        #     print(
+        #         f"chunk n{i}, depth{depth}, len{end-start}\n",
+        #         file_content[start:end],
+        #         "\n\n\n\n\n",
+        #         sep="\n"
+        #     )
+
+        for i, chunk in enumerate(chunks):
             start = chunk.first_character_index
             end = chunk.last_character_index
             print(
-                f"chunk n{i}, depth{depth}, len{end-start}\n",
+                f"chunk n{i}, len{end-start}\n",
                 file_content[start:end],
                 "\n\n\n\n\n",
                 sep="\n"
