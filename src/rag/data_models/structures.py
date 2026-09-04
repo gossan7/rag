@@ -10,6 +10,7 @@ class MinimalSource(BaseModel):
     @model_validator(mode="after")
     def validate_source(self) -> "MinimalSource":
         if self.first_character_index >= self.last_character_index:
+            print(self.first_character_index, self.last_character_index)
             raise ValueError(
                 "MinimalSource invalid: first_character_index" +
                 " should be < last_character_index"

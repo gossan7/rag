@@ -2,6 +2,7 @@ import ast
 
 from typing import Protocol, cast
 
+from ...enums import FileType
 from ...aliases import FileData
 from ...data_models import (
     MinimalSource,
@@ -17,20 +18,26 @@ class LocatedNode(Protocol):
     end_col_offset: int
 
 
-def has_statement_body(node: ast.AST) -> bool:
-    for _, value in ast.iter_fields(node):
-        if isinstance(value, list) \
-                and any(isinstance(item, ast.stmt) for item in value):
-            return True
+def get_line_offsets(file_content: str):
+    offsets = [-1, 0]
+    for line in file_content.splitlines(keepends=True):
+        offsets.append(offsets[-1] + len(line))
+    return offsets
 
-    return False
+
+def has_statement_body(node: ast.AST) -> bool:
+    return any(
+        isinstance(value, list)
+        and any(isinstance(x, ast.stmt) for x in value)
+        for _, value in ast.iter_fields(node)
+    )
 
 
 def is_structural(node: ast.AST) -> bool:
     return isinstance(node, ast.stmt) or has_statement_body(node)
 
 
-def is_located(node: ast.AST) -> bool:
+def has_boundaries(node: ast.AST) -> bool:
     return (
         isinstance(getattr(node, "lineno", None), int)
         and isinstance(getattr(node, "col_offset", None), int)
@@ -40,154 +47,118 @@ def is_located(node: ast.AST) -> bool:
 
 
 def get_boundaries(node: ast.AST, offsets: list[int]):
-    located = cast(LocatedNode, node)
-
+    located_node = cast(LocatedNode, node)
     return (
-        offsets[located.lineno] + located.col_offset,
-        offsets[located.end_lineno] + located.end_col_offset
+        offsets[located_node.lineno] + located_node.col_offset,
+        offsets[located_node.end_lineno] + located_node.end_col_offset
     )
 
 
-def recursive_ast_chunk(
+def window_split_node(
+    file_path: str,
+    start: int,
+    end: int,
+    offsets: list[int],
+    max_chunk_size: int
+) -> list[MinimalSource]:
+    chunks: list[MinimalSource] = []
+
+    i = 0
+    while offsets[i] <= start:
+        i += 1
+
+    l_start = start
+    while offsets[i - 1] < end:
+        l_end = min(offsets[i], end)
+        for char_idx in range(l_start, l_end, max_chunk_size):
+            source = MinimalSource(
+                file_path=file_path,
+                first_character_index=char_idx,
+                last_character_index=min(l_end, char_idx + max_chunk_size)
+            )
+
+            if chunks and get_merged_source_size(
+                chunks[-1], source
+            ) <= max_chunk_size:
+                chunks[-1] = merge_sources(chunks[-1], source)
+            else:
+                chunks.append(source)
+        l_start = l_end
+        i += 1
+    return chunks
+
+
+def recursive_chunk(
     node: ast.AST,
     offsets: list[int],
-    d_chunks: list[tuple[int, MinimalSource]],
-    file_content: str,
-    file_length: int,
     max_chunk_size: int,
-    file_path: str,
-    prev_start: int,
-    prev_end: int,
-    depth: int,
-    stick_gap: bool
-) -> None:
-    if isinstance(node, ast.Module):
-        start, end = 0, file_length
-    else:
-        start, end = get_boundaries(node, offsets)
-
-    children: list[ast.AST] = [
-        child for child in ast.iter_child_nodes(node)
-        if is_located(child) and is_structural(child)
-    ]
-    children.sort(key=lambda child: get_boundaries(child, offsets))
-
-    if not children or end - start <= max_chunk_size:
-        for first_char_idx in range(start, end, max_chunk_size):
-            last_char_idx = min(first_char_idx + max_chunk_size, end)
-            print(first_char_idx, last_char_idx)
-            d_chunks.append((depth, MinimalSource(
-                file_path=file_path,
-                first_character_index=first_char_idx,
-                last_character_index=last_char_idx
-            )))
-        return
-
-    prev = prev_start
-    for i, child in enumerate(children):
-        start, end = get_boundaries(child, offsets)
-
-        if start - prev > 0 and file_content[prev:start].strip():
-            # d_chunks.append((depth, MinimalSource(
-            #     file_path=file_path,
-            #     first_character_index=prev,
-            #     last_character_index=start
-            # )))
-            stick_gap = True
-
-        recursive_ast_chunk(
-            node=child,
-            offsets=offsets,
-            d_chunks=d_chunks,
-            file_content=file_content,
-            file_length=file_length,
-            max_chunk_size=max_chunk_size,
+    file_path: int,
+    start: int,
+    end: int
+) -> list[MinimalSource]:
+    if end - start <= max_chunk_size:
+        return [MinimalSource(
             file_path=file_path,
-            prev_start=start,
-            prev_end=end,
-            depth=depth + 1,
-            stick_gap=stick_gap
+            first_character_index=start,
+            last_character_index=end
+        )]
+
+    chunks: list[MinimalSource] = []
+    children = [
+        child for child in ast.iter_child_nodes(node)
+        if has_boundaries(child) and is_structural(child)
+    ]
+
+    if not children:
+        return window_split_node(
+            file_path=file_path,
+            start=start,
+            end=end,
+            offsets=offsets,
+            max_chunk_size=max_chunk_size
         )
 
-        prev = end
+    children.sort(key=lambda x: get_boundaries(x, offsets))
 
-    if prev_end - end > 0 and file_content[end:prev_end].strip():
-        d_chunks.append((depth, MinimalSource(
+    child_start = start
+    for i, child in enumerate(children):
+        _, child_end = get_boundaries(child, offsets)
+        for source in recursive_chunk(
+            node=child,
+            offsets=offsets,
+            max_chunk_size=max_chunk_size,
             file_path=file_path,
-            first_character_index=end,
-            last_character_index=prev_end
-        )))
+            start=child_start,
+            end=child_end if i != len(children) - 1 else end
+        ):
+            if not chunks:
+                chunks.append(source)
+                continue
 
+            prev_source = chunks[-1]
+            if get_merged_source_size(prev_source, source) <= max_chunk_size:
+                chunks[-1] = merge_sources(prev_source, source)
 
-def line_offsets(content: str) -> list[int]:
-    offsets = [-1, 0]
-    for i, char in enumerate(content):
-        if char == "\n":
-            offsets.append(i + 1)
-    return offsets
+            else:
+                chunks.append(source)
+
+        child_start = child_end
+
+    return chunks
 
 
 def ast_chunk(
     file_data: FileData,
     max_chunk_size: int = 2000
 ) -> list[MinimalSource]:
-    d_chunks: list[tuple[int, MinimalSource]] = []
-    _, file_path, file_content = file_data
+    ext, file_path, file_content = file_data
+    assert ext == FileType.PYTHON  # TEMP
 
-    file_length = len(file_content)
-    offsets = line_offsets(file_content)
-    tree = ast.parse(file_content)
-
-    recursive_ast_chunk(
-        node=tree,
-        offsets=offsets,
-        d_chunks=d_chunks,
-        file_content=file_content,
-        file_length=file_length,
+    return recursive_chunk(
+        node=ast.parse(file_content),
+        offsets=get_line_offsets(file_content),
         max_chunk_size=max_chunk_size,
         file_path=file_path,
-        prev_start=0,
-        prev_end=file_length,
-        depth=0,
-        stick_gap=False
+        start=0,
+        end=len(file_content),
     )
-
-    merged: list[tuple[int, MinimalSource]] = []
-    i = 0
-    while i < len(d_chunks):
-        depth, source = d_chunks[i]
-        best = i
-        for j in range(i + 1, len(d_chunks)):
-            c_depth, c_source = d_chunks[j]
-            if get_merged_source_size(source, c_source) > max_chunk_size:
-                break
-            if c_depth == depth:
-                break
-            if c_depth == depth + 1:
-                best = j
-        merged.append((depth, merge_sources(source, d_chunks[best][1])))
-        i = best + 1
-
-    chunks: list[MinimalSource] = []
-    i = 0
-    while i < len(merged):
-        depth, source = merged[i]
-        best = i
-        for j in range(i + 1, len(merged)):
-            c_depth, c_source = merged[j]
-            if get_merged_source_size(source, c_source) > max_chunk_size:
-                break
-            if c_depth == depth:
-                best = j
-        chunks.append(merge_sources(source, merged[best][1]))
-        i = best + 1
-
-    return chunks
-
-
-if __name__ == "__name__":
-    with open("ast.py") as f:
-        ast_chunk(
-            (None, "foo.py", f.read()),
-            2000
-        )

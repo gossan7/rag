@@ -26,7 +26,7 @@ def iter_files(config: Config) -> Iterator[FileData]:
 
         str_ext = ext.value
         for path in root.rglob(f"*{str_ext}"):
-            if not path.is_file():
+            if not path.is_file() or path.stat().st_size == 0:
                 continue
             if config.indexing.excludes & set(path.parts):
                 continue
