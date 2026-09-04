@@ -105,7 +105,7 @@ def recursive_ast_chunk(
             file_path=file_path,
             prev_start=start,
             prev_end=end,
-            depth=depth+1,
+            depth=depth + 1,
             stick_gap=stick_gap
         )
 
