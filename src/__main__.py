@@ -1,6 +1,6 @@
 from .rag.errors import RagError
 from .rag.config.load_config import load_config
-from .rag.indexing.load_files import iter_files
+from .rag.indexing.load_files import file_iterator
 from .rag.indexing.chunk_files import chunk_file
 
 import random
@@ -12,17 +12,17 @@ import random
 if __name__ == "__main__":
     try:
         config = load_config()
-        gen = iter_files(config)
+        gen = file_iterator(config)
 
         for fdata in gen:
-            chunks = chunk_file(config, fdata, 2000)
-            if random.random() <= 0.01:
-                break
+            chunks = chunk_file(config, fdata, 200)
+
+            # if random.random() <= 0.01:
+            #     break
 
         ext, file_path, file_content = fdata
 
         print(file_path)
-
         # for i, (depth, chunk) in enumerate(chunks):
         #     start = chunk.first_character_index
         #     end = chunk.last_character_index

@@ -26,11 +26,11 @@ def langchain_chunk(
     }
 
     if language is None:
-        splitter = RecursiveCharacterTextSplitter(kwargs=kwargs)
+        splitter = RecursiveCharacterTextSplitter(**kwargs)
     else:
         splitter = RecursiveCharacterTextSplitter.from_language(
+            **kwargs,
             language=language,
-            kwargs=kwargs
         )
 
     documents = splitter.create_documents([file_content])

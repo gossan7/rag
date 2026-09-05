@@ -1,6 +1,8 @@
 import ast
 
 from typing import Protocol, cast
+from bisect import bisect_right
+
 
 from ...enums import FileType
 from ...aliases import FileData
@@ -22,6 +24,7 @@ def get_line_offsets(file_content: str):
     offsets = [-1, 0]
     for line in file_content.splitlines(keepends=True):
         offsets.append(offsets[-1] + len(line))
+    offsets.append(len(file_content))
     return offsets
 
 
@@ -46,12 +49,28 @@ def has_boundaries(node: ast.AST) -> bool:
     )
 
 
-def get_boundaries(node: ast.AST, offsets: list[int]):
-    located_node = cast(LocatedNode, node)
-    return (
-        offsets[located_node.lineno] + located_node.col_offset,
-        offsets[located_node.end_lineno] + located_node.end_col_offset
-    )
+def get_boundaries(node: ast.AST, offsets: list[int], file_content: str):
+    located = cast(LocatedNode, node)
+
+    lineno, col_offset = located.lineno, located.col_offset
+    first_line = file_content[offsets[lineno]:offsets[lineno + 1]]
+    if first_line.isascii():
+        start_index = offsets[lineno] + col_offset
+    else:
+        start_index = offsets[lineno] + len(
+            first_line.encode("utf-8")[:col_offset].decode("utf-8")
+        )
+
+    end_lineno, end_col_offset = located.end_lineno, located.end_col_offset
+    last_line = file_content[offsets[end_lineno]:offsets[end_lineno + 1]]
+    if last_line.isascii():
+        end_index = offsets[end_lineno] + end_col_offset
+    else:
+        end_index = offsets[end_lineno] + len(
+            last_line.encode("utf-8")[:end_col_offset].decode("utf-8")
+        )
+
+    return (start_index, end_index)
 
 
 def window_split_node(
@@ -63,10 +82,7 @@ def window_split_node(
 ) -> list[MinimalSource]:
     chunks: list[MinimalSource] = []
 
-    i = 0
-    while offsets[i] <= start:
-        i += 1
-
+    i = bisect_right(offsets, start)
     l_start = start
     while offsets[i - 1] < end:
         l_end = min(offsets[i], end)
@@ -94,7 +110,8 @@ def recursive_chunk(
     max_chunk_size: int,
     file_path: int,
     start: int,
-    end: int
+    end: int,
+    file_content: str
 ) -> list[MinimalSource]:
     if end - start <= max_chunk_size:
         return [MinimalSource(
@@ -118,18 +135,19 @@ def recursive_chunk(
             max_chunk_size=max_chunk_size
         )
 
-    children.sort(key=lambda x: get_boundaries(x, offsets))
+    children.sort(key=lambda x: get_boundaries(x, offsets, file_content))
 
     child_start = start
     for i, child in enumerate(children):
-        _, child_end = get_boundaries(child, offsets)
+        _, child_end = get_boundaries(child, offsets, file_content)
         for source in recursive_chunk(
             node=child,
             offsets=offsets,
             max_chunk_size=max_chunk_size,
             file_path=file_path,
             start=child_start,
-            end=child_end if i != len(children) - 1 else end
+            end=child_end if i != len(children) - 1 else end,
+            file_content=file_content
         ):
             if not chunks:
                 chunks.append(source)
@@ -161,4 +179,5 @@ def ast_chunk(
         file_path=file_path,
         start=0,
         end=len(file_content),
+        file_content=file_content
     )

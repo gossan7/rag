@@ -8,6 +8,10 @@ ARGS		?=
 run:
 	$(PYTHON) -m src index $(ARGS)
 
+profile:
+	$(PYTHON) -m cProfile -o profile.prof -m src index $(ARGS)
+	$(UV) run snakeviz profile.prof
+
 install:
 	$(UV) sync
 

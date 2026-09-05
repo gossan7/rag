@@ -1,4 +1,5 @@
 from typing import TypeAlias, Callable
+from collections.abc import Iterator
 
 from ..config import Config
 from ..aliases import FileData
@@ -24,3 +25,12 @@ def chunk_file(
     ext, _, _ = file_data
     chunking_method = config.indexing.file_types[ext].chunking_method
     return CHUNKING[chunking_method](file_data, max_chunk_size)
+
+
+def chunked_file_iterator(
+    config: Config,
+    max_chunk_size: int,
+    file_iterator: Iterator[FileData]
+) -> Iterator[tuple[list[MinimalSource], FileData]]:
+    for file_data in file_iterator:
+        for source in chunk_file(config, file_data, max_chunk_size):

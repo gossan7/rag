@@ -10,8 +10,7 @@ paths:
 
 
 # Specifies which file types will be processed, which directories to exclude, and which chunking method is used.
-# Available types are: .py, .md, .txt
-# Available chunking methods are: ast, langchain, window
+# Available chunking methods are: ast (python only), langchain, window
 indexing:
   excludes: [__pycache__, .git, .venv]
   file_types:
