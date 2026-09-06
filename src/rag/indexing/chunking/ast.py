@@ -108,7 +108,7 @@ def recursive_chunk(
     node: ast.AST,
     offsets: list[int],
     max_chunk_size: int,
-    file_path: int,
+    file_path: str,
     start: int,
     end: int,
     file_content: str
