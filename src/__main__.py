@@ -15,10 +15,10 @@ if __name__ == "__main__":
         gen = file_iterator(config)
 
         for fdata in gen:
-            chunks = chunk_file(config, fdata, 200)
+            chunks = chunk_file(config, fdata, 2000)
 
-            # if random.random() <= 0.01:
-            #     break
+            if random.random() <= 0.01:
+                break
 
         ext, file_path, file_content = fdata
 

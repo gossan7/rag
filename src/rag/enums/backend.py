@@ -2,6 +2,6 @@ from enum import Enum
 
 
 class Backend(str, Enum):
-    TF_IDF = "tfidf"
+    TFIDF = "tfidf"
     BM25 = "bm25"
     MINILM = "minilm"
