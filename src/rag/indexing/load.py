@@ -18,7 +18,7 @@ def read_file(path: Path) -> str:
         )
 
 
-def file_iterator(config: Config) -> Iterator[FileData]:
+def file_generator(config: Config) -> Iterator[FileData]:
     root = config.paths.raw
     for ext, ext_config in config.indexing.file_types.items():
         if ext_config.enabled is False:
