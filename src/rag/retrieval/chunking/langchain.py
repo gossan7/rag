@@ -1,5 +1,7 @@
 from langchain_text_splitters import RecursiveCharacterTextSplitter, Language
 
+from typing import Any
+
 from ...aliases import FileData
 from ...enums import FileType
 from ...data_models import MinimalSource
@@ -19,7 +21,7 @@ def langchain_chunk(
     chunks: list[MinimalSource] = []
     ext, file_path, file_content = file_data
     language = LANGUAGE[ext]
-    kwargs = {
+    kwargs: dict[str, Any] = {
         "chunk_size": max_chunk_size,
         "chunk_overlap": min(100, max_chunk_size // 10),
         "add_start_index": True

@@ -17,6 +17,7 @@ class FileTypeConfig(BaseConfig):
 class BackendConfig(BaseConfig):
     enabled: bool
     weight: float = Field(gt=0.0, le=1.0)
+    path: str
 
 
 class PathsConfig(BaseConfig):

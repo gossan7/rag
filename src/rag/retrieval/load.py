@@ -2,7 +2,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 from ..errors import IndexingError
-from ..config import Config
+from ..enums import FileType
 from ..aliases import FileData
 
 
@@ -18,16 +18,16 @@ def read_file(path: Path) -> str:
         )
 
 
-def file_generator(config: Config) -> Iterator[FileData]:
-    root = config.paths.raw
-    for ext, ext_config in config.indexing.file_types.items():
-        if ext_config.enabled is False:
-            continue
-
+def file_generator(
+    root: Path,
+    extensions: set[FileType],
+    excludes: set[str]
+) -> Iterator[FileData]:
+    for ext in extensions:
         str_ext = ext.value
         for path in root.rglob(f"*{str_ext}"):
             if not path.is_file() or path.stat().st_size == 0:
                 continue
-            if config.indexing.excludes & set(path.parts):
+            if excludes & set(path.parts):
                 continue
             yield (ext, str(path), read_file(path))

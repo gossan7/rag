@@ -1,7 +1,7 @@
 from .rag.errors import RagError
 from .rag.config.load_config import load_config
-from .rag.indexing.load_files import file_iterator
-from .rag.indexing.chunk_files import chunk_file
+from .rag.retrieval.load import file_generator
+from .rag.retrieval.chunk import chunk_file
 
 import random
 
@@ -12,7 +12,7 @@ import random
 if __name__ == "__main__":
     try:
         config = load_config()
-        gen = file_iterator(config)
+        gen = file_generator(config)
 
         for fdata in gen:
             chunks = chunk_file(config, fdata, 2000)
