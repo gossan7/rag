@@ -7,27 +7,27 @@ from ..errors import ConfigError
 from .config import Config
 
 
-CONFIG_DIR = Path("config/")
-
-
-def load_config(file_path: str = "default.yaml") -> Config:
+def load_config(
+    file_name: str = "default.yaml",
+    config_dir: Path = Path("config/")
+) -> Config:
     try:
-        config_file = next(CONFIG_DIR.rglob(file_path))
+        config_file = next(config_dir.rglob(file_name))
     except StopIteration as e:
         raise ConfigError(
-            f"File not found in {CONFIG_DIR}: '{file_path}'"
+            f"File not found in {config_dir}: '{file_name}'"
         ) from e
 
     if not config_file.exists():
-        raise ConfigError(f"File not found in {CONFIG_DIR}: '{file_path}'")
+        raise ConfigError(f"File not found in {config_dir}: '{file_name}'")
     if not config_file.is_file():
-        raise ConfigError(f"File not found in {CONFIG_DIR}: '{file_path}'")
+        raise ConfigError(f"File not found in {config_dir}: '{file_name}'")
 
     try:
         raw_config = yaml.safe_load(config_file.read_text(encoding="utf-8"))
     except Exception as e:
         raise ConfigError(
-            f"Could not open '{file_path}': {e}"
+            f"Could not open '{file_name}': {e}"
         ) from e
 
     try:
@@ -39,7 +39,7 @@ def load_config(file_path: str = "default.yaml") -> Config:
             ) for err in e.errors()
         ])
         raise ConfigError(
-            f"Config file '{file_path}' malformed:{error_details}"
+            f"Config file '{file_name}' malformed:{error_details}"
         ) from e
 
     return config

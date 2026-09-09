@@ -40,10 +40,6 @@ def index(
         if config.enabled is True
     ]
 
-    extensions = set()
-    for backend in backends:
-        extensions |= backend.extensions
-
     file_iterator = file_generator(
         root=config.paths.raw,
         extensions=extensions,
