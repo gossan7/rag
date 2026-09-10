@@ -5,7 +5,7 @@ from ..config import Config
 from ..enums import Backend, ChunkingMethod
 from ..aliases import FileData
 from ..data_models import MinimalSource
-from .backends.backend import RetrievalBackend
+from .backends.retrieval_backend import RetrievalBackend
 from .chunk import chunk_file
 from .load import file_generator
 
@@ -17,14 +17,20 @@ RETRIEVAL_BACKENDS: dict[Backend, Type[RetrievalBackend]] = {
 }
 
 
+def register_file(
+    file_data: FileData, backends: list[RetrievalBackend]
+) -> None:
+    for backend in backends:
+        backend.register_file(file_data)
+
+
 def index_chunk(
-    chunking_method: ChunkingMethod,
     file_data: FileData,
     backends: list[RetrievalBackend],
-    max_chunk_size: int
+    chunk: MinimalSource,
 ):
     for backend in backends:
-        pass
+        backend.add_document(chunk, file_data)
 
 
 def index(
@@ -36,18 +42,29 @@ def index(
 ) -> None:
     backends: list[RetrievalBackend] = [
         RETRIEVAL_BACKENDS[backend](config)
-        for backend, config in config.retrieval.backends.items()
-        if config.enabled is True
+        for backend, backend_config in config.retrieval.backends.items()
+        if backend_config.enabled is True
     ]
+
+    file_types = set((
+        ftype for ftype, ftype_config in config.indexing.file_types.items()
+        if ftype_config.enabled is True
+    ))
 
     file_iterator = file_generator(
         root=config.paths.raw,
-        extensions=extensions,
+        file_types=file_types,
         excludes=config.indexing.excludes
     )
 
     for file_data in file_iterator:
-        if any((backend.is_cached(file_data) for backend in backends)):
-            chunks = chunk_file(config, file_data, max_chunk_size)
-            for chunk in chunks:
-                index_chunk(file_data, backends)
+        if all(backend.is_cached(file_data) for backend in backends):
+            register_file(file_data, backends)
+            continue
+
+        for chunk in chunk_file(config, file_data, max_chunk_size):
+            index_chunk(file_data, backends, chunk)
+
+    for backend in backends:
+        backend.clean_index()
+        backend.save_index()

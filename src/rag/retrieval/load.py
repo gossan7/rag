@@ -20,14 +20,14 @@ def read_file(path: Path) -> str:
 
 def file_generator(
     root: Path,
-    extensions: set[FileType],
+    file_types: set[FileType],
     excludes: set[str]
 ) -> Iterator[FileData]:
-    for ext in extensions:
-        str_ext = ext.value
-        for path in root.rglob(f"*{str_ext}"):
+    for ftype in file_types:
+        ext = ftype.value
+        for path in root.rglob(f"*{ext}"):
             if not path.is_file() or path.stat().st_size == 0:
                 continue
             if excludes & set(path.parts):
                 continue
-            yield (ext, str(path), read_file(path))
+            yield (ftype, str(path), read_file(path))

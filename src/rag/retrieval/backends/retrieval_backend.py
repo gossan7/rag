@@ -1,10 +1,11 @@
 from typing import ClassVar
 from abc import ABC, abstractmethod
-from hashlib import sha256
+from hashlib import sha256, _Hash
 from pathlib import Path
 
 from ...config import Config, load_config
 from ...enums import FileType, Backend
+from ...data_models import MinimalSource
 from ...aliases import FileData
 from ...errors import IndexingError
 
@@ -19,9 +20,12 @@ class RetrievalBackend(ABC):
             str(self.curr_config.paths.processed)
             + self.curr_config.retrieval.backends[self.backend_type].path
         )
+        self.path.mkdir(parents=True, exist_ok=True)
 
         self.uncached_extensions: set[FileType] = set()
-        self.file_cache: dict[str, str] = dict()
+        self.curr_file_cache: dict[str, _Hash] = dict()
+        self.prev_file_cache: dict[str, _Hash] = dict()
+        self.computed_files: set[str] = set()
 
         if self._previous_run_exists():
             self._load_prev_config()
@@ -50,11 +54,22 @@ class RetrievalBackend(ABC):
         if ext in self.uncached_extensions:
             return False
 
-        if file_path not in self.file_cache:
+        if file_path not in self.prev_file_cache:
             return False
 
-        return self.file_cache[file_content] \
+        return self.prev_file_cache[file_content] \
             == sha256(file_content.encode("utf-8"))
+
+    def cache_file(self, file_data: FileData):
+        _, file_path, file_content = file_data
+        self.computed_files.add(file_path)
+        self.curr_file_cache[file_path] = sha256(
+            file_content.encode("utf-8")
+        )
+
+    def register_file(self, file_data: FileData) -> None:
+        _, file_path, _ = file_data
+        self.computed_files.add(file_path)
 
     def _dir_is_empty(self):
         try:
@@ -84,7 +99,11 @@ class RetrievalBackend(ABC):
         pass
 
     @abstractmethod
-    def add_document(self):
+    def add_document(self, chunk: MinimalSource, file_data: FileData):
+        pass
+
+    @abstractmethod
+    def clean_index(self):
         pass
 
     @abstractmethod
@@ -92,5 +111,5 @@ class RetrievalBackend(ABC):
         pass
 
     @abstractmethod
-    def search_index(self):
+    def search_index(self, query: str, k: int):
         pass
