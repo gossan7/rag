@@ -1,7 +1,6 @@
 from .rag.errors import RagError
-from .rag.config.load_config import load_config
-from .rag.retrieval.load import file_generator
-from .rag.retrieval.chunk import chunk_file
+from .rag.config.load import load_config
+from .rag.retrieval.index import file_generator, index
 
 import random
 
@@ -12,36 +11,7 @@ import random
 if __name__ == "__main__":
     try:
         config = load_config()
-        gen = file_generator(config)
-
-        for fdata in gen:
-            chunks = chunk_file(config, fdata, 2000)
-
-            if random.random() <= 0.01:
-                break
-
-        ext, file_path, file_content = fdata
-
-        print(file_path)
-        # for i, (depth, chunk) in enumerate(chunks):
-        #     start = chunk.first_character_index
-        #     end = chunk.last_character_index
-        #     print(
-        #         f"chunk n{i}, depth{depth}, len{end-start}\n",
-        #         file_content[start:end],
-        #         "\n\n\n\n\n",
-        #         sep="\n"
-        #     )
-
-        for i, chunk in enumerate(chunks):
-            start = chunk.first_character_index
-            end = chunk.last_character_index
-            print(
-                f"chunk n{i}, len{end - start}\n",
-                file_content[start:end],
-                "\n\n\n\n\n",
-                sep="\n"
-            )
+        index(config, 2000)
 
     except RagError as e:
         print(e)

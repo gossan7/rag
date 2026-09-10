@@ -1,9 +1,9 @@
 from typing import ClassVar
 from abc import ABC, abstractmethod
-from hashlib import sha256, _Hash
+from hashlib import sha256
 from pathlib import Path
 
-from ...config import Config, load_config
+from ...config import Config, load_config, dump_config
 from ...enums import FileType, Backend
 from ...data_models import MinimalSource
 from ...aliases import FileData
@@ -17,14 +17,14 @@ class RetrievalBackend(ABC):
         self.curr_config = config
 
         self.path = Path(
-            str(self.curr_config.paths.processed)
+            str(self.curr_config.paths.processed) + "/"
             + self.curr_config.retrieval.backends[self.backend_type].path
         )
         self.path.mkdir(parents=True, exist_ok=True)
 
         self.uncached_extensions: set[FileType] = set()
-        self.curr_file_cache: dict[str, _Hash] = dict()
-        self.prev_file_cache: dict[str, _Hash] = dict()
+        self.curr_file_cache: dict[str, str] = dict()
+        self.prev_file_cache: dict[str, str] = dict()
         self.computed_files: set[str] = set()
 
         if self._previous_run_exists():
@@ -58,25 +58,21 @@ class RetrievalBackend(ABC):
             return False
 
         return self.prev_file_cache[file_content] \
-            == sha256(file_content.encode("utf-8"))
+            == sha256(file_content.encode("utf-8")).hexdigest()
 
     def cache_file(self, file_data: FileData):
         _, file_path, file_content = file_data
         self.computed_files.add(file_path)
         self.curr_file_cache[file_path] = sha256(
             file_content.encode("utf-8")
-        )
+        ).hexdigest()
 
     def register_file(self, file_data: FileData) -> None:
         _, file_path, _ = file_data
         self.computed_files.add(file_path)
 
     def _dir_is_empty(self):
-        try:
-            _ = next(self.path.rglob(""))
-        except StopIteration:
-            return True
-        return False
+        return not any(self.path.iterdir())
 
     def _load_prev_config(self):
         self.prev_config = load_config(
@@ -84,7 +80,11 @@ class RetrievalBackend(ABC):
         )
 
     def _save_curr_config(self):
-        pass
+        dump_config(
+            self.curr_config,
+            file_name="config.yaml",
+            config_dir=self.path
+        )
 
     @abstractmethod
     def _previous_run_exists(self) -> bool:

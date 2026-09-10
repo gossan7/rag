@@ -47,6 +47,7 @@ class BM25Backend(RetrievalBackend):
             path=str(self.path),
             reuse=False
         )
+        self.writer = self.index.writer()
 
     def _load_index(self):
         self.index = tantivy.Index(

@@ -30,7 +30,7 @@ indexing:
 retrieval:
   backends:
     tfidf:
-      enabled: true
+      enabled: false
       weight: 1.0
       path: "tfidf/"
     bm25:

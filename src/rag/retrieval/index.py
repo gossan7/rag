@@ -1,17 +1,17 @@
-from collections.abc import Iterator
-from typing import Any, Type
+from typing import Type
 
 from ..config import Config
-from ..enums import Backend, ChunkingMethod
+from ..enums import Backend
 from ..aliases import FileData
 from ..data_models import MinimalSource
 from .backends.retrieval_backend import RetrievalBackend
+from .backends.bm25_backend import BM25Backend
 from .chunk import chunk_file
 from .load import file_generator
 
 
 RETRIEVAL_BACKENDS: dict[Backend, Type[RetrievalBackend]] = {
-    Backend.BM25: "foo",
+    Backend.BM25: BM25Backend,
     Backend.TFIDF: "bar",
     Backend.MINILM: "baz"
 }
@@ -35,9 +35,6 @@ def index_chunk(
 
 def index(
     config: Config,
-    prev_config: Config,
-    manifest: dict[str, Any],
-    file_iterator: Iterator[FileData],
     max_chunk_size: int
 ) -> None:
     backends: list[RetrievalBackend] = [
