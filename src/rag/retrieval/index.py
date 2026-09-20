@@ -1,4 +1,5 @@
 from typing import Type
+from hashlib import sha256
 
 from ..config import Config
 from ..enums import Backend
@@ -26,11 +27,13 @@ def register_file(
 
 def index_chunk(
     file_data: FileData,
+    file_hash: str,
     backends: list[RetrievalBackend],
     chunk: MinimalSource,
 ):
+    print("feur")
     for backend in backends:
-        backend.add_document(chunk, file_data)
+        backend.add_document(chunk, file_data, file_hash)
 
 
 def index(
@@ -55,12 +58,15 @@ def index(
     )
 
     for file_data in file_iterator:
-        if all(backend.is_cached(file_data) for backend in backends):
+        _, _, file_content = file_data
+        file_hash = sha256(file_content.encode("utf-8")).hexdigest()
+        if all(backend.is_cached(file_data, file_hash)
+               for backend in backends):
             register_file(file_data, backends)
             continue
 
         for chunk in chunk_file(config, file_data, max_chunk_size):
-            index_chunk(file_data, backends, chunk)
+            index_chunk(file_data, file_hash, backends, chunk)
 
     for backend in backends:
         backend.clean_index()

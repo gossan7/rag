@@ -12,7 +12,8 @@ def dump_config(
 ) -> None:
     raw_config = config.model_dump(mode="json")
     config_dir.mkdir(parents=True, exist_ok=True)
+    path = Path(str(config_dir) + '/' + file_name)
     text_config = yaml.safe_dump(raw_config, sort_keys=False)
 
-    with open(file_name, mode="w", encoding="utf-8") as f:
+    with open(path, mode="w", encoding="utf-8") as f:
         f.write(text_config)

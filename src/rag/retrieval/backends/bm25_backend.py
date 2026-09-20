@@ -57,21 +57,29 @@ class BM25Backend(RetrievalBackend):
         )
         self.writer = self.index.writer()
 
-    def add_document(self, chunk: MinimalSource, file_data: FileData):
+    def add_document(
+        self,
+        chunk: MinimalSource,
+        file_data: FileData,
+        file_hash: str
+    ) -> None:
         _, file_path, file_content = file_data
-        self.computed_files.add(file_path)
-        if self.is_cached(file_data):
+        self.register_file(file_data)
+        if self.is_cached(file_data, file_hash):
             return
+
+        start = chunk.first_character_index
+        end = chunk.last_character_index
 
         doc = tantivy.Document(
             file_path=file_path,
-            body=file_content,
-            first_character_index=chunk.first_character_index,
-            last_character_index=chunk.last_character_index
+            body=file_content[start:end],
+            first_character_index=start,
+            last_character_index=end
         )
 
         self.writer.add_document(doc)
-        self.writer.commit()
+        self.cache_file(file_data, file_hash)
 
     def clean_index(self):
         remaining_files = set(self.prev_file_cache.keys()) \
@@ -84,7 +92,9 @@ class BM25Backend(RetrievalBackend):
             )
 
     def save_index(self):
+        self.writer.commit()
         self._save_curr_config()
+        self._save_curr_manifest()
 
     def search_index(self, query: str, k: int):
         pass

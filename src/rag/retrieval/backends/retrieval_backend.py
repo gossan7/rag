@@ -1,7 +1,7 @@
 from typing import ClassVar
 from abc import ABC, abstractmethod
-from hashlib import sha256
 from pathlib import Path
+import json
 
 from ...config import Config, load_config, dump_config
 from ...enums import FileType, Backend
@@ -30,6 +30,7 @@ class RetrievalBackend(ABC):
         if self._previous_run_exists():
             self._load_prev_config()
             self._load_index()
+            self._load_prev_manifest()
         else:
             if not self._dir_is_empty():
                 raise IndexingError(
@@ -39,17 +40,8 @@ class RetrievalBackend(ABC):
             self.prev_config = None
             self._create_index()
 
-        # if anything is already in path, check if it is a valid prewvious run
-
-        # detect if any previous run was done, if true:
-        # load previous config (if previous chunking is different for an extension we dont keep anything from that extension)
-        # load index
-        # get all hashs in a dict
-        # as we index files, we check if the extension is in the ones we need to index what ever the previous run was. we check if its already in the hashed files, if the hash has changed we reindex it.
-        # when indexing a file, we remove it from the dict
-
-    def is_cached(self, file_data: FileData):
-        ext, file_path, file_content = file_data
+    def is_cached(self, file_data: FileData, file_hash: str):
+        ext, file_path, _ = file_data
 
         if ext in self.uncached_extensions:
             return False
@@ -57,15 +49,12 @@ class RetrievalBackend(ABC):
         if file_path not in self.prev_file_cache:
             return False
 
-        return self.prev_file_cache[file_content] \
-            == sha256(file_content.encode("utf-8")).hexdigest()
+        return self.prev_file_cache[file_path] == file_hash
 
-    def cache_file(self, file_data: FileData):
-        _, file_path, file_content = file_data
+    def cache_file(self, file_data: FileData, file_hash: str):
+        _, file_path, _ = file_data
         self.computed_files.add(file_path)
-        self.curr_file_cache[file_path] = sha256(
-            file_content.encode("utf-8")
-        ).hexdigest()
+        self.curr_file_cache[file_path] = file_hash
 
     def register_file(self, file_data: FileData) -> None:
         _, file_path, _ = file_data
@@ -86,6 +75,28 @@ class RetrievalBackend(ABC):
             config_dir=self.path
         )
 
+    def _load_prev_manifest(self) -> None:
+        manifest_path = Path(str(self.path) + "/manifest.json")
+        try:
+            with open(manifest_path, encoding="utf-8") as f:
+                self.prev_file_cache = json.load(f)
+        except Exception as e:
+            raise IndexingError(
+                f"Could not open the manifest at {manifest_path}:\n"
+                + f"{e}"
+            )
+
+    def _save_curr_manifest(self) -> None:
+        manifest_path = Path(str(self.path) + "/manifest.json")
+        try:
+            with open(manifest_path, mode="w", encoding="utf-8") as f:
+                json.dump(self.curr_file_cache, f)
+        except Exception as e:
+            raise IndexingError(
+                f"Could not write the manifest at {manifest_path}:\n"
+                + f"{e}"
+            )
+
     @abstractmethod
     def _previous_run_exists(self) -> bool:
         pass
@@ -99,7 +110,12 @@ class RetrievalBackend(ABC):
         pass
 
     @abstractmethod
-    def add_document(self, chunk: MinimalSource, file_data: FileData):
+    def add_document(
+        self,
+        chunk: MinimalSource,
+        file_data: FileData,
+        file_hash: str
+    ) -> None:
         pass
 
     @abstractmethod
