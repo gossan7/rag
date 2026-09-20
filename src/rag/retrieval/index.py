@@ -18,11 +18,11 @@ RETRIEVAL_BACKENDS: dict[Backend, Type[RetrievalBackend]] = {
 }
 
 
-def register_file(
-    file_data: FileData, backends: list[RetrievalBackend]
+def cache_file(
+    file_data: FileData, file_hash: str, backends: list[RetrievalBackend]
 ) -> None:
     for backend in backends:
-        backend.register_file(file_data)
+        backend.cache_file(file_data, file_hash)
 
 
 def index_chunk(
@@ -62,7 +62,7 @@ def index(
         file_hash = sha256(file_content.encode("utf-8")).hexdigest()
         if all(backend.is_cached(file_data, file_hash)
                for backend in backends):
-            register_file(file_data, backends)
+            cache_file(file_data, file_hash, backends)
             continue
 
         for chunk in chunk_file(config, file_data, max_chunk_size):

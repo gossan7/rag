@@ -64,7 +64,6 @@ class BM25Backend(RetrievalBackend):
         file_hash: str
     ) -> None:
         _, file_path, file_content = file_data
-        self.register_file(file_data)
         if self.is_cached(file_data, file_hash):
             return
 

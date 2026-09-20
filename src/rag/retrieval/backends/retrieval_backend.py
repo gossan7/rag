@@ -56,10 +56,6 @@ class RetrievalBackend(ABC):
         self.computed_files.add(file_path)
         self.curr_file_cache[file_path] = file_hash
 
-    def register_file(self, file_data: FileData) -> None:
-        _, file_path, _ = file_data
-        self.computed_files.add(file_path)
-
     def _dir_is_empty(self):
         return not any(self.path.iterdir())
 
