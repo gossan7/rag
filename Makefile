@@ -6,7 +6,11 @@ ARGS		?=
 
 
 run:
-	$(PYTHON) -m student index $(ARGS)
+	$(PYTHON) -m src index $(ARGS)
+
+profile:
+	$(PYTHON) -m cProfile -o profile.prof -m src index $(ARGS)
+	$(UV) run snakeviz profile.prof
 
 install:
 	$(UV) sync
@@ -23,4 +27,4 @@ dclean:
 	rm -rf data/processed/
 
 fclean: clean dclean
-	@rm -rf .venv
+	rm -rf .venv
