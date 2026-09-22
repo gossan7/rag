@@ -22,10 +22,11 @@ class RetrievalBackend(ABC):
         )
         self.path.mkdir(parents=True, exist_ok=True)
 
-        self.uncached_extensions: set[FileType] = set()
         self.curr_file_cache: dict[str, str] = dict()
         self.prev_file_cache: dict[str, str] = dict()
         self.computed_files: set[str] = set()
+        self.curr_max_chunk_size = 0
+        self.prev_max_chunk_size = 0
 
         if self._previous_run_exists():
             self._load_prev_config()
@@ -40,7 +41,16 @@ class RetrievalBackend(ABC):
             self.prev_config = None
             self._create_index()
 
+        self.uncached_extensions: set[FileType] = set([
+            ext for ext, cfg in self.curr_config.indexing.file_types.items()
+            if not self.prev_config or cfg.chunking_method !=
+            self.prev_config.indexing.file_types[ext].chunking_method
+        ])
+
     def is_cached(self, file_data: FileData, file_hash: str):
+        if self.prev_max_chunk_size != self.curr_max_chunk_size:
+            return False
+
         ext, file_path, _ = file_data
 
         if ext in self.uncached_extensions:
@@ -51,7 +61,10 @@ class RetrievalBackend(ABC):
 
         return self.prev_file_cache[file_path] == file_hash
 
-    def cache_file(self, file_data: FileData, file_hash: str):
+    def register_chunk_size(self, max_chunk_size: int) -> None:
+        self.curr_max_chunk_size = max_chunk_size
+
+    def register_file(self, file_data: FileData, file_hash: str):
         _, file_path, _ = file_data
         self.computed_files.add(file_path)
         self.curr_file_cache[file_path] = file_hash
@@ -75,7 +88,7 @@ class RetrievalBackend(ABC):
         manifest_path = Path(str(self.path) + "/manifest.json")
         try:
             with open(manifest_path, encoding="utf-8") as f:
-                self.prev_file_cache = json.load(f)
+                self.prev_max_chunk_size, self.prev_file_cache = json.load(f)
         except Exception as e:
             raise IndexingError(
                 f"Could not open the manifest at {manifest_path}:\n"
@@ -84,9 +97,11 @@ class RetrievalBackend(ABC):
 
     def _save_curr_manifest(self) -> None:
         manifest_path = Path(str(self.path) + "/manifest.json")
+        manifest = [self.curr_max_chunk_size, self.curr_file_cache]
         try:
-            with open(manifest_path, mode="w", encoding="utf-8") as f:
-                json.dump(self.curr_file_cache, f)
+            tmp = manifest_path.with_suffix(".tmp")
+            tmp.write_text(json.dumps(manifest), encoding="utf-8")
+            tmp.replace(manifest_path)
         except Exception as e:
             raise IndexingError(
                 f"Could not write the manifest at {manifest_path}:\n"
@@ -106,11 +121,14 @@ class RetrievalBackend(ABC):
         pass
 
     @abstractmethod
+    def delete_indexed_file(self, file_path: str) -> None:
+        pass
+
+    @abstractmethod
     def add_document(
         self,
         chunk: MinimalSource,
         file_data: FileData,
-        file_hash: str
     ) -> None:
         pass
 

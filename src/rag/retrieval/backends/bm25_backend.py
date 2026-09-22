@@ -21,17 +21,17 @@ class BM25Backend(RetrievalBackend):
             tokenizer_name="raw",
             index_option="basic"
         )
-        builder.add_integer_field(
+        builder.add_unsigned_field(
             name="first_character_index",
             stored=True,
         )
-        builder.add_integer_field(
+        builder.add_unsigned_field(
             name="last_character_index",
             stored=True
         )
         builder.add_text_field(
             name="body",
-            stored=True,
+            stored=False,
             tokenizer_name="default",
             index_option="freq"
         )
@@ -57,16 +57,20 @@ class BM25Backend(RetrievalBackend):
         )
         self.writer = self.index.writer()
 
+    def delete_indexed_file(self, file_path: str) -> None:
+        if file_path in self.prev_file_cache:
+            self.writer.delete_documents(
+                field_name="file_path",
+                field_value=file_path
+            )
+            del self.prev_file_cache[file_path]
+
     def add_document(
         self,
         chunk: MinimalSource,
         file_data: FileData,
-        file_hash: str
     ) -> None:
         _, file_path, file_content = file_data
-        if self.is_cached(file_data, file_hash):
-            return
-
         start = chunk.first_character_index
         end = chunk.last_character_index
 
@@ -76,9 +80,7 @@ class BM25Backend(RetrievalBackend):
             first_character_index=start,
             last_character_index=end
         )
-
         self.writer.add_document(doc)
-        self.cache_file(file_data, file_hash)
 
     def clean_index(self):
         remaining_files = set(self.prev_file_cache.keys()) \
