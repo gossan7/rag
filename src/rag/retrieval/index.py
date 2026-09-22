@@ -1,28 +1,19 @@
-from typing import Type
 from hashlib import sha256
 
 from ..config import Config
-from ..enums import Backend
+from ..errors import IndexingError
 from ..aliases import FileData
 from ..data_models import MinimalSource
 from .backends.retrieval_backend import RetrievalBackend
-from .backends.bm25_backend import BM25Backend
 from .chunk import chunk_file
 from .load import file_generator
 
 
-RETRIEVAL_BACKENDS: dict[Backend, Type[RetrievalBackend]] = {
-    Backend.BM25: BM25Backend,
-    Backend.TFIDF: "bar",
-    Backend.MINILM: "baz"
-}
-
-
-def cache_file(
+def register_file(
     file_data: FileData, file_hash: str, backends: list[RetrievalBackend]
 ) -> None:
     for backend in backends:
-        backend.cache_file(file_data, file_hash)
+        backend.register_file(file_data, file_hash)
 
 
 def index_chunk(
@@ -31,20 +22,20 @@ def index_chunk(
     backends: list[RetrievalBackend],
     chunk: MinimalSource,
 ):
-    print("feur")
     for backend in backends:
         backend.add_document(chunk, file_data, file_hash)
 
 
 def index(
     config: Config,
-    max_chunk_size: int
+    max_chunk_size: int,
+    backends: list[RetrievalBackend]
 ) -> None:
-    backends: list[RetrievalBackend] = [
-        RETRIEVAL_BACKENDS[backend](config)
-        for backend, backend_config in config.retrieval.backends.items()
-        if backend_config.enabled is True
-    ]
+    if max_chunk_size < 1 or max_chunk_size > 2000:
+        raise IndexingError(f"max_chunk_size is invalide: {max_chunk_size}")
+
+    for bkd in backends:
+        bkd.register_chunk_size(max_chunk_size)
 
     file_types = set((
         ftype for ftype, ftype_config in config.indexing.file_types.items()
@@ -58,15 +49,26 @@ def index(
     )
 
     for file_data in file_iterator:
-        _, _, file_content = file_data
+        _, file_path, file_content = file_data
         file_hash = sha256(file_content.encode("utf-8")).hexdigest()
-        if all(backend.is_cached(file_data, file_hash)
-               for backend in backends):
-            cache_file(file_data, file_hash, backends)
+
+        for bkd in backends:
+            bkd.register_file(file_data, file_hash)
+
+        dirty = [
+            bkd for bkd in backends
+            if not bkd.is_cached(file_data, file_hash)
+        ]
+
+        if not dirty:
             continue
 
+        for bkd in dirty:
+            bkd.delete_indexed_file(file_path)
+
         for chunk in chunk_file(config, file_data, max_chunk_size):
-            index_chunk(file_data, file_hash, backends, chunk)
+            for bkd in dirty:
+                bkd.add_document(chunk, file_data)
 
     for backend in backends:
         backend.clean_index()

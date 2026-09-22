@@ -3,16 +3,16 @@
 # Specifies path for: files to process, directory to save index, datasets, and output.
 # Do not change unless you know what you're doing
 paths:
-  raw: "data/raw/"
-  processed: "data/processed/"
-  datasets: "data/datasets/"
-  output: "data/output/"
+  raw: "data/raw"
+  processed: "data/processed"
+  datasets: "data/datasets"
+  output: "data/output"
 
 
 # Specifies which file types will be processed, which directories to exclude, and which chunking method is used.
 # Available chunking methods are: ast (python only), langchain, window
 indexing:
-  excludes: [__pycache__/, .git/, .venv/]
+  excludes: [__pycache__, .git, .venv]
   file_types:
     .py:
       chunking_method: "ast"
@@ -32,15 +32,15 @@ retrieval:
     tfidf:
       enabled: false
       weight: 1.0
-      path: "tfidf/"
+      path: "tfidf"
     bm25:
       enabled: true
       weight: 1.0
-      path: "bm25/"
+      path: "bm25"
     minilm:
       enabled: false
       weight: 1.0
-      path: "minilm/"
+      path: "minilm"
 
 
 # Enables auto-translate in english for queries. Can make results worse if precise words are needed.

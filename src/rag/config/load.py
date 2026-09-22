@@ -15,13 +15,13 @@ def load_config(
         config_file = next(config_dir.rglob(file_name))
     except StopIteration as e:
         raise ConfigError(
-            f"File not found in {config_dir}: '{file_name}'"
+            f"File not found: '{file_name}'"
         ) from e
 
     if not config_file.exists():
-        raise ConfigError(f"File not found in {config_dir}: '{file_name}'")
+        raise ConfigError(f"File not found: '{file_name}'")
     if not config_file.is_file():
-        raise ConfigError(f"File not found in {config_dir}: '{file_name}'")
+        raise ConfigError(f"File not found: '{file_name}'")
 
     try:
         raw_config = yaml.safe_load(config_file.read_text(encoding="utf-8"))
