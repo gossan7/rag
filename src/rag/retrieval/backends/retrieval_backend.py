@@ -24,7 +24,6 @@ class RetrievalBackend(ABC):
 
         self.curr_file_cache: dict[str, str] = dict()
         self.prev_file_cache: dict[str, str] = dict()
-        self.computed_files: set[str] = set()
         self.curr_max_chunk_size = 0
         self.prev_max_chunk_size = 0
 
@@ -66,7 +65,6 @@ class RetrievalBackend(ABC):
 
     def register_file(self, file_data: FileData, file_hash: str):
         _, file_path, _ = file_data
-        self.computed_files.add(file_path)
         self.curr_file_cache[file_path] = file_hash
 
     def _dir_is_empty(self):

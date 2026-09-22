@@ -2,28 +2,9 @@ from hashlib import sha256
 
 from ..config import Config
 from ..errors import IndexingError
-from ..aliases import FileData
-from ..data_models import MinimalSource
 from .backends.retrieval_backend import RetrievalBackend
 from .chunk import chunk_file
 from .load import file_generator
-
-
-def register_file(
-    file_data: FileData, file_hash: str, backends: list[RetrievalBackend]
-) -> None:
-    for backend in backends:
-        backend.register_file(file_data, file_hash)
-
-
-def index_chunk(
-    file_data: FileData,
-    file_hash: str,
-    backends: list[RetrievalBackend],
-    chunk: MinimalSource,
-):
-    for backend in backends:
-        backend.add_document(chunk, file_data, file_hash)
 
 
 def index(

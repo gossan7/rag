@@ -83,8 +83,8 @@ class BM25Backend(RetrievalBackend):
         self.writer.add_document(doc)
 
     def clean_index(self):
-        remaining_files = set(self.prev_file_cache.keys()) \
-            - self.computed_files
+        remaining_files = self.prev_file_cache.keys() \
+            - self.curr_file_cache.keys()
 
         for file_path in remaining_files:
             self.writer.delete_documents(
