@@ -16,7 +16,7 @@ def index(
         raise IndexingError(f"max_chunk_size is invalide: {max_chunk_size}")
 
     for bkd in backends:
-        bkd.register_chunk_size(max_chunk_size)
+        bkd.begin_index(max_chunk_size)
 
     file_types = set((
         ftype for ftype, ftype_config in config.indexing.file_types.items()
@@ -54,3 +54,4 @@ def index(
     for backend in backends:
         backend.clean_index()
         backend.save_index()
+        backend.end_index()

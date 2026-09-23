@@ -16,16 +16,18 @@ class RetrievalBackend(ABC):
     def __init__(self, config: Config):
         self.curr_config = config
 
-        self.path = Path(
-            str(self.curr_config.paths.processed) + "/"
-            + self.curr_config.retrieval.backends[self.backend_type].path
+        self.path = (
+            self.curr_config.paths.processed
+            / self.curr_config.retrieval.backends[self.backend_type].path
         )
+
         self.path.mkdir(parents=True, exist_ok=True)
 
         self.curr_file_cache: dict[str, str] = dict()
         self.prev_file_cache: dict[str, str] = dict()
         self.curr_max_chunk_size = 0
         self.prev_max_chunk_size = 0
+        self.prev_config: Config | None = None
 
         if self._previous_run_exists():
             self._load_prev_config()
@@ -37,7 +39,6 @@ class RetrievalBackend(ABC):
                     f"Can't create an index at {self.path}"
                     ": directory not empty."
                 )
-            self.prev_config = None
             self._create_index()
 
         self.uncached_extensions: set[FileType] = set([
@@ -60,12 +61,18 @@ class RetrievalBackend(ABC):
 
         return self.prev_file_cache[file_path] == file_hash
 
-    def register_chunk_size(self, max_chunk_size: int) -> None:
-        self.curr_max_chunk_size = max_chunk_size
-
     def register_file(self, file_data: FileData, file_hash: str):
         _, file_path, _ = file_data
         self.curr_file_cache[file_path] = file_hash
+
+    def begin_index(self, max_chunk_size: int) -> None:
+        self.curr_max_chunk_size = max_chunk_size
+        self.curr_file_cache = {}
+
+    def end_index(self) -> None:
+        self.prev_max_chunk_size = self.curr_max_chunk_size
+        self.prev_file_cache = self.curr_file_cache.copy()
+        self.prev_config = self.curr_config.model_copy(deep=True)
 
     def _dir_is_empty(self):
         return not any(self.path.iterdir())

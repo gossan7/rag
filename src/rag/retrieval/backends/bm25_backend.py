@@ -58,12 +58,10 @@ class BM25Backend(RetrievalBackend):
         self.writer = self.index.writer()
 
     def delete_indexed_file(self, file_path: str) -> None:
-        if file_path in self.prev_file_cache:
-            self.writer.delete_documents(
-                field_name="file_path",
-                field_value=file_path
-            )
-            del self.prev_file_cache[file_path]
+        self.writer.delete_documents(
+            field_name="file_path",
+            field_value=file_path
+        )
 
     def add_document(
         self,
@@ -94,6 +92,7 @@ class BM25Backend(RetrievalBackend):
 
     def save_index(self):
         self.writer.commit()
+        self.index.reload()
         self._save_curr_config()
         self._save_curr_manifest()
 
