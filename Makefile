@@ -5,8 +5,11 @@ ARGS		?=
 
 
 
-run:
+index:
 	$(PYTHON) -m src index $(ARGS)
+
+search:
+	$(PYTHON) -m src search $(ARGS)
 
 profile:
 	$(PYTHON) -m cProfile -o profile.prof -m src index $(ARGS)

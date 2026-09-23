@@ -48,6 +48,7 @@ class BM25Backend(RetrievalBackend):
             reuse=False
         )
         self.writer = self.index.writer()
+        self.searcher = self.index.searcher()
 
     def _load_index(self):
         self.index = tantivy.Index(
@@ -56,6 +57,7 @@ class BM25Backend(RetrievalBackend):
             reuse=True
         )
         self.writer = self.index.writer()
+        self.searcher = self.index.searcher()
 
     def delete_indexed_file(self, file_path: str) -> None:
         self.writer.delete_documents(
@@ -93,8 +95,34 @@ class BM25Backend(RetrievalBackend):
     def save_index(self):
         self.writer.commit()
         self.index.reload()
+        self.writer = self.index.writer()
         self._save_curr_config()
         self._save_curr_manifest()
 
-    def search_index(self, query: str, k: int):
-        pass
+    def search_index(
+        self,
+        query: str,
+        k: int
+    ) -> list[tuple[MinimalSource, float | int]]:
+
+        parsed_query = self.index.parse_query(
+            query=query,
+            default_field_names=["body"]
+        )
+
+        results = self.searcher.search(
+            query=parsed_query,
+            limit=k
+        )
+
+        out = []
+        for score, address in results.hits:
+            doc = self.searcher.doc(address)
+            source = MinimalSource(
+                file_path=doc["file_path"][0],
+                first_character_index=doc["first_character_index"][0],
+                last_character_index=doc["last_character_index"][0]
+            )
+            out.append((source, score))
+
+        return out

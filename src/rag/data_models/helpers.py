@@ -31,3 +31,18 @@ def get_merged_source_size(
     source1: MinimalSource, source2: MinimalSource
 ) -> int:
     return get_source_size(merge_sources(source1, source2))
+
+
+def merge_scored_sources(
+    sources1: dict[MinimalSource, int],
+    sources2: dict[MinimalSource, int]
+) -> dict[MinimalSource, int]:
+    new_sources: dict[MinimalSource, int] = {}
+    for source, score in sources1.items():
+        new_sources.setdefault(source, 0)
+        new_sources[source] += score
+
+    for source, score in sources2.items():
+        new_sources.setdefault(source, 0)
+        new_sources[source] += score
+    return new_sources

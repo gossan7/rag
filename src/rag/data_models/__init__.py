@@ -13,7 +13,8 @@ from .helpers import (
     get_source_size,
     can_merge_sources,
     merge_sources,
-    get_merged_source_size
+    get_merged_source_size,
+    merge_scored_sources
 )
 
 __all__ = [
@@ -28,5 +29,6 @@ __all__ = [
     "get_source_size",
     "can_merge_sources",
     "merge_sources",
-    "get_merged_source_size"
+    "get_merged_source_size",
+    "merge_scored_sources"
 ]

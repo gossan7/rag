@@ -73,16 +73,30 @@ class RetrievalBackend(ABC):
         self.prev_max_chunk_size = self.curr_max_chunk_size
         self.prev_file_cache = self.curr_file_cache.copy()
         self.prev_config = self.curr_config.model_copy(deep=True)
+        self.uncached_extensions.clear()
 
-    def _dir_is_empty(self):
+    def search(self, query: str, k: int) -> dict[MinimalSource, int]:
+        search_results: dict[MinimalSource, int] = {}
+        out = self.search_index(query, k)
+        out.sort(key=lambda x: x[1], reverse=True)
+        max_score = len(out)
+        rank = 0
+        last_score = float('inf')
+        for source, score in out:
+            if score != last_score:
+                rank += 1
+            search_results[source] = max_score - rank + 1
+        return search_results
+
+    def _dir_is_empty(self) -> bool:
         return not any(self.path.iterdir())
 
-    def _load_prev_config(self):
+    def _load_prev_config(self) -> None:
         self.prev_config = load_config(
             file_name="config.yaml", config_dir=self.path
         )
 
-    def _save_curr_config(self):
+    def _save_curr_config(self) -> None:
         dump_config(
             self.curr_config,
             file_name="config.yaml",
@@ -118,11 +132,11 @@ class RetrievalBackend(ABC):
         pass
 
     @abstractmethod
-    def _create_index(self):
+    def _create_index(self) -> None:
         pass
 
     @abstractmethod
-    def _load_index(self):
+    def _load_index(self) -> None:
         pass
 
     @abstractmethod
@@ -138,13 +152,17 @@ class RetrievalBackend(ABC):
         pass
 
     @abstractmethod
-    def clean_index(self):
+    def clean_index(self) -> None:
         pass
 
     @abstractmethod
-    def save_index(self):
+    def save_index(self) -> None:
         pass
 
     @abstractmethod
-    def search_index(self, query: str, k: int):
+    def search_index(
+        self,
+        query: str,
+        k: int
+    ) -> list[tuple[MinimalSource, int]]:
         pass

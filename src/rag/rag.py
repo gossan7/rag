@@ -5,6 +5,7 @@ from .enums import Backend
 from .retrieval.backends import RetrievalBackend, BM25Backend
 
 from .retrieval.index import index
+from .retrieval.search import search
 
 RETRIEVAL_BACKENDS: dict[Backend, Type[RetrievalBackend]] = {
     Backend.BM25: BM25Backend,
@@ -21,8 +22,14 @@ class RAG:
     def index(self, max_chunk_size: int):
         index(self.config, max_chunk_size, self.backends)
 
-    def search(self):
-        pass
+    def search(self, query: str, k: int = 5):
+        search_results = search(query, k, self.backends)
+        for source, score in search_results.items():
+            print(source.file_path)
+            print(source.first_character_index)
+            print(source.last_character_index)
+            print(score)
+            print()
 
     def search_dataset(self):
         pass
