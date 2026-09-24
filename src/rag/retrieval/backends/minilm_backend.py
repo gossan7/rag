@@ -1,7 +1,10 @@
+from chromadb.api.types import Embeddable, EmbeddingFunction
 from chromadb.utils.embedding_functions import (
     SentenceTransformerEmbeddingFunction,
 )
 import chromadb
+
+from typing import cast
 
 from ...enums import Backend
 from ...data_models import MinimalSource
@@ -20,10 +23,14 @@ class MiniLMBackend(RetrievalBackend):
         self.ids: list[str] = []
         self.documents: list[str] = []
         self.metadatas: list[chromadb.Metadata] = []
-        self.embedding_function = SentenceTransformerEmbeddingFunction(
+        embedding_function = SentenceTransformerEmbeddingFunction(
             model_name="all-MiniLM-L6-v2",
             device="cuda",
             normalize_embeddings=True,
+        )
+        self.embedding_function = cast(
+            EmbeddingFunction[Embeddable],
+            embedding_function,
         )
         super().__init__(config)
 
