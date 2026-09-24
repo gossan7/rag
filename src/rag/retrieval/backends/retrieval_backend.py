@@ -69,6 +69,13 @@ class RetrievalBackend(ABC):
         self.curr_max_chunk_size = max_chunk_size
         self.curr_file_cache = {}
 
+    def clean_index(self) -> None:
+        remaining_files = self.prev_file_cache.keys() \
+            - self.curr_file_cache.keys()
+
+        for file_path in remaining_files:
+            self.delete_indexed_file(file_path)
+
     def end_index(self) -> None:
         self.prev_max_chunk_size = self.curr_max_chunk_size
         self.prev_file_cache = self.curr_file_cache.copy()
@@ -150,10 +157,6 @@ class RetrievalBackend(ABC):
         chunk: MinimalSource,
         file_data: FileData,
     ) -> None:
-        pass
-
-    @abstractmethod
-    def clean_index(self) -> None:
         pass
 
     @abstractmethod

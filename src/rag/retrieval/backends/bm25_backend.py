@@ -3,13 +3,14 @@ import tantivy
 from ...enums import Backend
 from ...data_models import MinimalSource
 from ...aliases import FileData
+from ...config import Config
 from .retrieval_backend import RetrievalBackend
 
 
 class BM25Backend(RetrievalBackend):
     backend_type = Backend.BM25
 
-    def __init__(self, config):
+    def __init__(self, config: Config) -> None:
         self._build_schema()
         super().__init__(config)
 
@@ -79,16 +80,6 @@ class BM25Backend(RetrievalBackend):
             last_character_index=end
         )
         self.writer.add_document(doc)
-
-    def clean_index(self):
-        remaining_files = self.prev_file_cache.keys() \
-            - self.curr_file_cache.keys()
-
-        for file_path in remaining_files:
-            self.writer.delete_documents(
-                field_name="file_path",
-                field_value=file_path
-            )
 
     def save_index(self):
         self.writer.commit()

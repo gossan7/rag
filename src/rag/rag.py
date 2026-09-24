@@ -2,15 +2,15 @@ from typing import Type
 
 from .config import Config
 from .enums import Backend
-from .retrieval.backends import RetrievalBackend, BM25Backend
+from .retrieval.backends import RetrievalBackend, BM25Backend, MiniLMBackend
 
 from .retrieval.index import index
 from .retrieval.search import search
 
 RETRIEVAL_BACKENDS: dict[Backend, Type[RetrievalBackend]] = {
     Backend.BM25: BM25Backend,
-    Backend.TFIDF: "bar",
-    Backend.MINILM: "baz"
+    Backend.TFIDF: "baz",
+    Backend.MINILM: MiniLMBackend
 }
 
 
