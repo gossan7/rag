@@ -24,11 +24,10 @@ class RAG:
 
     def search(self, query: str, k: int = 5):
         search_results = search(query, k, self.backends)
-        for source, score in search_results.items():
+        for source in search_results:
             print(source.file_path)
             print(source.first_character_index)
             print(source.last_character_index)
-            print(score)
             print()
 
     def search_dataset(self):

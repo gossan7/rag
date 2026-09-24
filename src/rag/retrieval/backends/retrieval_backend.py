@@ -75,17 +75,18 @@ class RetrievalBackend(ABC):
         self.prev_config = self.curr_config.model_copy(deep=True)
         self.uncached_extensions.clear()
 
-    def search(self, query: str, k: int) -> dict[MinimalSource, int]:
-        search_results: dict[MinimalSource, int] = {}
+    def search(self, query: str, k: int) -> dict[MinimalSource, float]:
+        search_results: dict[MinimalSource, float] = {}
         out = self.search_index(query, k)
         out.sort(key=lambda x: x[1], reverse=True)
-        max_score = len(out)
+        weight = self.curr_config.retrieval.backends[self.backend_type].weight
         rank = 0
-        last_score = float('inf')
+        last_score: float | None = None
         for source, score in out:
             if score != last_score:
                 rank += 1
-            search_results[source] = max_score - rank + 1
+                last_score = score
+            search_results[source] = float(((k - rank + 1) / k) * weight)
         return search_results
 
     def _dir_is_empty(self) -> bool:
@@ -164,5 +165,5 @@ class RetrievalBackend(ABC):
         self,
         query: str,
         k: int
-    ) -> list[tuple[MinimalSource, int]]:
+    ) -> list[tuple[MinimalSource, float]]:
         pass
