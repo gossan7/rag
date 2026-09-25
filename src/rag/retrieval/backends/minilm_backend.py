@@ -3,6 +3,7 @@ from chromadb.utils.embedding_functions import (
     SentenceTransformerEmbeddingFunction,
 )
 import chromadb
+import torch
 
 from typing import cast
 
@@ -23,14 +24,13 @@ class MiniLMBackend(RetrievalBackend):
         self.ids: list[str] = []
         self.documents: list[str] = []
         self.metadatas: list[chromadb.Metadata] = []
-        embedding_function = SentenceTransformerEmbeddingFunction(
-            model_name="all-MiniLM-L6-v2",
-            device="cuda",
-            normalize_embeddings=True,
-        )
         self.embedding_function = cast(
             EmbeddingFunction[Embeddable],
-            embedding_function,
+            SentenceTransformerEmbeddingFunction(
+                model_name="all-MiniLM-L6-v2",
+                device="cuda" if torch.cuda.is_available() else "cpu",
+                normalize_embeddings=True,
+            )
         )
         super().__init__(config)
 
@@ -59,7 +59,9 @@ class MiniLMBackend(RetrievalBackend):
 
     def _create_index(self) -> None:
         self.collection = self.client.create_collection(
-            "minilm", embedding_function=self.embedding_function
+            "minilm",
+            metadata={"hnsw:space": "cosine"},
+            embedding_function=self.embedding_function
         )
 
     def _load_index(self) -> None:
@@ -101,4 +103,23 @@ class MiniLMBackend(RetrievalBackend):
         query: str,
         k: int
     ) -> list[tuple[MinimalSource, float]]:
-        raise NotImplementedError
+        results = self.collection.query(
+            query_texts=[query],
+            n_results=k,
+            include=["metadatas", "distances"]
+        )
+
+        metadatas = cast(list, results["metadatas"])
+        distances = cast(list, results["distances"])
+
+        out: list[tuple[MinimalSource, float]] = []
+        for metadata, distance in zip(metadatas[0], distances[0]):
+            out.append((
+                MinimalSource(
+                    file_path=metadata["file_path"],
+                    first_character_index=metadata["first_character_index"],
+                    last_character_index=metadata["last_character_index"]
+                ),
+                -distance
+            ))
+        return out
