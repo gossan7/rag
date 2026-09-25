@@ -58,10 +58,14 @@ class MiniLMBackend(RetrievalBackend):
         return not self._dir_is_empty()
 
     def _create_index(self) -> None:
-        self.collection = self.client.create_collection(
-            "minilm",
-            metadata={"hnsw:space": "cosine"},
-            embedding_function=self.embedding_function
+        self.collection = self.client.get_or_create_collection(
+            name="minilm",
+            embedding_function=self.embedding_function,
+            configuration={
+                "hnsw": {
+                    "space": "cosine",
+                }
+            },
         )
 
     def _load_index(self) -> None:

@@ -3,7 +3,7 @@
 # Specifies path for: files to process, directory to save index, datasets, and output.
 # Do not change unless you know what you're doing
 paths:
-  raw: "data/raw"
+  raw: "src"
   processed: "data/processed"
   datasets: "data/datasets"
   output: "data/output"
@@ -19,10 +19,10 @@ indexing:
       enabled: true
     .md:
       chunking_method: "langchain"
-      enabled: false
+      enabled: true
     .txt:
       chunking_method: "langchain"
-      enabled: false
+      enabled: true
 
 
 # Specifies which backend will be used for both indexing and searching.
@@ -34,7 +34,7 @@ retrieval:
       weight: 1.0
       path: "tfidf"
     bm25:
-      enabled: false
+      enabled: true
       weight: 1.0
       path: "bm25"
     minilm:
