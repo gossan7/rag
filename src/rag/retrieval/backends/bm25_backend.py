@@ -4,15 +4,16 @@ from ...enums import Backend
 from ...data_models import MinimalSource
 from ...aliases import FileData
 from ...config import Config
+from ...logger import Logger
 from .retrieval_backend import RetrievalBackend
 
 
 class BM25Backend(RetrievalBackend):
     backend_type = Backend.BM25
 
-    def __init__(self, config: Config) -> None:
+    def __init__(self, config: Config, logger: Logger) -> None:
         self._build_schema()
-        super().__init__(config)
+        super().__init__(config, logger)
 
     def _build_schema(self):
         builder = tantivy.SchemaBuilder()

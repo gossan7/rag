@@ -8,13 +8,15 @@ from ...enums import FileType, Backend
 from ...data_models import MinimalSource
 from ...aliases import FileData
 from ...errors import IndexingError
+from ...logger import Logger
 
 
 class RetrievalBackend(ABC):
     backend_type: ClassVar[Backend]
 
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, logger: Logger):
         self.curr_config = config
+        self.logger = logger
 
         self.path = (
             self.curr_config.paths.processed
@@ -33,6 +35,7 @@ class RetrievalBackend(ABC):
             self._load_prev_config()
             self._load_index()
             self._load_prev_manifest()
+            self.index_created = False
         else:
             if not self._dir_is_empty():
                 raise IndexingError(
@@ -40,6 +43,7 @@ class RetrievalBackend(ABC):
                     ": directory not empty."
                 )
             self._create_index()
+            self.index_created = True
 
         self.uncached_extensions: set[FileType] = set([
             ext for ext, cfg in self.curr_config.indexing.file_types.items()
@@ -64,6 +68,9 @@ class RetrievalBackend(ABC):
     def register_file(self, file_data: FileData, file_hash: str):
         _, file_path, _ = file_data
         self.curr_file_cache[file_path] = file_hash
+
+    def was_indexed(self, file_path):
+        return file_path in self.prev_file_cache
 
     def begin_index(self, max_chunk_size: int) -> None:
         self.curr_max_chunk_size = max_chunk_size

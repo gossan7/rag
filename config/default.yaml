@@ -3,7 +3,7 @@
 # Specifies path for: files to process, directory to save index, datasets, and output.
 # Do not change unless you know what you're doing
 paths:
-  raw: "src"
+  raw: "data/raw"
   processed: "data/processed"
   datasets: "data/datasets"
   output: "data/output"
@@ -30,7 +30,7 @@ indexing:
 retrieval:
   backends:
     tfidf:
-      enabled: false
+      enabled: true
       weight: 1.0
       path: "tfidf"
     bm25:
@@ -38,7 +38,7 @@ retrieval:
       weight: 1.0
       path: "bm25"
     minilm:
-      enabled: true
+      enabled: false
       weight: 1.0
       path: "minilm"
 

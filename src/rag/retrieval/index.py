@@ -2,6 +2,7 @@ from hashlib import sha256
 
 from ..config import Config
 from ..errors import IndexingError
+from ..logger import Logger
 from .backends.retrieval_backend import RetrievalBackend
 from .chunk import chunk_file
 from .load import file_generator
@@ -10,10 +11,15 @@ from .load import file_generator
 def index(
     config: Config,
     max_chunk_size: int,
-    backends: list[RetrievalBackend]
+    backends: list[RetrievalBackend],
+    logger: Logger
 ) -> None:
     if max_chunk_size < 1 or max_chunk_size > 2000:
-        raise IndexingError(f"max_chunk_size is invalide: {max_chunk_size}")
+        raise IndexingError(f"max_chunk_size is invalid: {max_chunk_size}")
+    if not config.paths.raw.is_dir():
+        raise IndexingError(
+            f"Corpus directory not found: {config.paths.raw}"
+        )
 
     for bkd in backends:
         bkd.begin_index(max_chunk_size)
@@ -26,7 +32,8 @@ def index(
     file_iterator = file_generator(
         root=config.paths.raw,
         file_types=file_types,
-        excludes=config.indexing.excludes
+        excludes=config.indexing.excludes,
+        logger=logger
     )
 
     for file_data in file_iterator:
@@ -45,7 +52,8 @@ def index(
             continue
 
         for bkd in dirty:
-            bkd.delete_indexed_file(file_path)
+            if bkd.was_indexed(file_path):
+                bkd.delete_indexed_file(file_path)
 
         for chunk in chunk_file(config, file_data, max_chunk_size):
             for bkd in dirty:

@@ -1,9 +1,11 @@
 from collections.abc import Iterator
 from pathlib import Path
+import os
 
 from ..errors import IndexingError
 from ..enums import FileType
 from ..aliases import FileData
+from ..logger import Logger
 
 
 def read_file(path: Path) -> str:
@@ -18,16 +20,37 @@ def read_file(path: Path) -> str:
         )
 
 
+def file_paths(
+    root: Path,
+    excludes: set[str],
+) -> list[Path]:
+    paths = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [
+            dirname
+            for dirname in dirnames
+            if dirname not in excludes
+        ]
+
+        directory = Path(dirpath)
+
+        for filename in filenames:
+            paths.append(directory / filename)
+    return paths
+
+
 def file_generator(
     root: Path,
     file_types: set[FileType],
-    excludes: set[str]
+    excludes: set[str],
+    logger: Logger
 ) -> Iterator[FileData]:
-    for ftype in file_types:
-        ext = ftype.value
-        for path in root.rglob(f"*{ext}"):
-            if not path.is_file() or path.stat().st_size == 0:
-                continue
-            if excludes & set(path.parts):
-                continue
-            yield (ftype, str(path), read_file(path))
+    paths = file_paths(root, excludes)
+    str_file_types = set([ftype.value for ftype in file_types])
+    for path in logger.loading_bar("Indexing", paths):
+        assert isinstance(path, Path)
+        if not path.is_file() or path.stat().st_size == 0:
+            continue
+        if path.suffix not in str_file_types:
+            continue
+        yield (FileType(path.suffix), str(path), read_file(path))

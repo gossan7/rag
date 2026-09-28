@@ -1,26 +1,33 @@
 from typing import Type
+from functools import cached_property
 
-from .config import Config
+from .config import Config, load_config
 from .enums import Backend
-from .retrieval.backends import RetrievalBackend, BM25Backend, MiniLMBackend
-
+from .retrieval.backends import (
+    RetrievalBackend,
+    BM25Backend,
+    MiniLMBackend,
+    TFIDFBackend
+)
+from .logger import Logger
 from .retrieval.index import index
 from .retrieval.search import search
 
+
 RETRIEVAL_BACKENDS: dict[Backend, Type[RetrievalBackend]] = {
+    Backend.TFIDF: TFIDFBackend,
     Backend.BM25: BM25Backend,
-    Backend.TFIDF: "baz",
     Backend.MINILM: MiniLMBackend
 }
 
 
 class RAG:
-    def __init__(self, config: Config):
-        self.config = config
-        self._backends: None | list[RetrievalBackend] = None
+    def __init__(self, config_file: str):
+        self.config: Config = load_config(config_file)
+        self.logger = Logger()
 
-    def index(self, max_chunk_size: int):
-        index(self.config, max_chunk_size, self.backends)
+    def index(self, max_chunk_size: int) -> None:
+        index(self.config, max_chunk_size, self.backends, self.logger)
 
     def search(self, query: str, k: int = 5):
         search_results = search(query, k, self.backends)
@@ -42,15 +49,10 @@ class RAG:
     def evaluate(self):
         pass
 
-    @property
+    @cached_property
     def backends(self) -> list[RetrievalBackend]:
-        if self._backends is not None:
-            return self._backends
-
-        self._backends = [
-            RETRIEVAL_BACKENDS[bkd](self.config)
+        return [
+            RETRIEVAL_BACKENDS[bkd](self.config, self.logger)
             for bkd, bkd_config in self.config.retrieval.backends.items()
             if bkd_config.enabled is True
         ]
-
-        return self._backends

@@ -6,16 +6,20 @@ from collections.abc import Iterable
 
 class Logger:
     def __init__(self):
-        logging.basicConfig(
-            level=logging.INFO,
-            format="%(levelname)s: %(message)s"
+        self.logger = logging.getLogger("rag")
+        self.logger.setLevel(logging.INFO)
+        self.logger.propagate = False
+
+        handler = logging.StreamHandler()
+        handler.setFormatter(
+            logging.Formatter("%(levelname)s: %(message)s")
         )
-        self.logger = logging.getLogger(__name__)
+        self.logger.addHandler(handler)
 
     def info(self, msg: str) -> None:
         self.logger.info(msg)
 
-    def waring(self, msg: str) -> None:
+    def warning(self, msg: str) -> None:
         self.logger.warning(msg)
 
     def error(self, msg: str) -> None:
@@ -23,9 +27,13 @@ class Logger:
 
     def loading_bar(
         self,
+        name: str,
         iterable: Iterable,
-        name: str | None = None
+        total: int | None = None,
     ) -> Iterable:
-        with logging_redirect_tqdm():
-            for x in tqdm(iterable=iterable, desc=name):
-                yield x
+        with logging_redirect_tqdm(loggers=[self.logger]):
+            yield from tqdm(
+                iterable,
+                desc=name,
+                total=total,
+            )
