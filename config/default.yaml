@@ -34,11 +34,11 @@ retrieval:
       weight: 1.0
       path: "tfidf"
     bm25:
-      enabled: false
+      enabled: true
       weight: 1.0
       path: "bm25"
     minilm:
-      enabled: false
+      enabled: true
       weight: 1.0
       path: "minilm"
 

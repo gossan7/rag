@@ -32,10 +32,10 @@ class RAG:
     def search(self, query: str, k: int = 5):
         search_results = search(query, k, self.backends)
         for source in search_results:
-            print(source.file_path)
-            print(source.first_character_index)
-            print(source.last_character_index)
-            print()
+            path = source.file_path
+            start = source.first_character_index
+            end = source.last_character_index
+            print(path, f"[{start}:{end}]")
 
     def search_dataset(self):
         pass

@@ -8,11 +8,15 @@ from ...logger import Logger
 from .retrieval_backend import RetrievalBackend
 
 
+BATCH_SIZE = 2048
+
+
 class BM25Backend(RetrievalBackend):
     backend_type = Backend.BM25
 
     def __init__(self, config: Config, logger: Logger) -> None:
         self._build_schema()
+        self.to_commit = 0
         super().__init__(config, logger)
 
     def _build_schema(self):
@@ -81,6 +85,11 @@ class BM25Backend(RetrievalBackend):
             last_character_index=end
         )
         self.writer.add_document(doc)
+
+        self.to_commit += 1
+        if self.to_commit >= BATCH_SIZE:
+            self.writer.commit()
+            self.to_commit = 0
 
     def save_index(self):
         self.writer.commit()

@@ -10,11 +10,15 @@ from ...logger import Logger
 from .retrieval_backend import RetrievalBackend
 
 
+BATCH_SIZE = 2048
+
+
 class TFIDFBackend(RetrievalBackend):
     backend_type = Backend.TFIDF
 
     def __init__(self, config: Config, logger: Logger):
         self.term_generator = xapian.TermGenerator()
+        self.to_commit = 0
         super().__init__(config, logger)
 
     def _previous_run_exists(self) -> bool:
@@ -38,7 +42,7 @@ class TFIDFBackend(RetrievalBackend):
     def delete_indexed_file(self, file_path: str) -> None:
         self.database.delete_document(
             sha256(file_path.encode("utf-8")).hexdigest()
-            )
+        )
 
     def add_document(
         self,
@@ -54,6 +58,11 @@ class TFIDFBackend(RetrievalBackend):
         doc.set_data(chunk.model_dump_json())
         doc.add_boolean_term(sha256(file_path.encode("utf-8")).hexdigest())
         self.database.add_document(doc)
+
+        self.to_commit += 1
+        if self.to_commit >= BATCH_SIZE:
+            self.database.commit()
+            self.to_commit = 0
 
     def save_index(self) -> None:
         self.database.commit()

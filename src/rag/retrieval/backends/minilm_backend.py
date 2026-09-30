@@ -8,6 +8,7 @@ import torch
 
 from typing import Literal, cast
 from functools import cached_property
+import warnings
 
 from ...enums import Backend
 from ...data_models import MinimalSource
@@ -40,6 +41,11 @@ class MiniLMBackend(RetrievalBackend):
         transformers_logging.disable_progress_bar()
         disable_progress_bars()
         transformers_logging.set_verbosity_error()
+        warnings.filterwarnings(
+            "ignore",
+            category=SyntaxWarning,
+            module=r"optimum\.intel\.openvino\.modeling_base",
+        )
         load_dotenv()
         self.logger.info("Loading MiniLM...")
         if torch.cuda.is_available():
@@ -51,6 +57,7 @@ class MiniLMBackend(RetrievalBackend):
         else:
             self.logger.warning(
                 "CUDA not available, will default to cpu + OpenVINO."
+                " (quantized)"
             )
             model = SentenceTransformer(
                 MODEL_NAME,
@@ -58,11 +65,11 @@ class MiniLMBackend(RetrievalBackend):
                 device="cpu",
                 model_kwargs={
                     "file_name":
-                        "openvino/openvino_model.xml",
-                        "ov_config": {
-                            "INFERENCE_PRECISION_HINT": "f16",
-                        },
-                },
+                        "openvino/openvino_model_qint8_quantized.xml",
+                    "ov_config": {
+                        "INFERENCE_PRECISION_HINT": "f16",
+                    }
+                }
             )
         self.logger.info("MiniLM loaded.")
         return model
