@@ -5,7 +5,6 @@ import os
 from ..errors import IndexingError
 from ..enums import FileType
 from ..aliases import FileData
-from ..logger import Logger
 
 
 def read_file(path: Path) -> str:
@@ -39,15 +38,32 @@ def file_paths(
     return paths
 
 
+def count_files(
+    root: Path,
+    file_types: set[FileType],
+    excludes: set[str]
+) -> int:
+    c = 0
+    paths = file_paths(root, excludes)
+    str_file_types = set([ftype.value for ftype in file_types])
+    for path in paths:
+        assert isinstance(path, Path)
+        if not path.is_file() or path.stat().st_size == 0:
+            continue
+        if path.suffix not in str_file_types:
+            continue
+        c += 1
+    return c
+
+
 def file_generator(
     root: Path,
     file_types: set[FileType],
-    excludes: set[str],
-    logger: Logger
+    excludes: set[str]
 ) -> Iterator[FileData]:
     paths = file_paths(root, excludes)
     str_file_types = set([ftype.value for ftype in file_types])
-    for path in logger.loading_bar("Indexing", paths):
+    for path in paths:
         assert isinstance(path, Path)
         if not path.is_file() or path.stat().st_size == 0:
             continue

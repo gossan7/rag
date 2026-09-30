@@ -5,7 +5,7 @@ from ..errors import IndexingError
 from ..logger import Logger
 from .backends.retrieval_backend import RetrievalBackend
 from .chunk import chunk_file
-from .load import file_generator
+from .load import file_generator, count_files
 
 
 def index(
@@ -29,14 +29,18 @@ def index(
         if ftype_config.enabled is True
     ))
 
+    n_files = count_files(
+        root=config.paths.raw,
+        file_types=file_types,
+        excludes=config.indexing.excludes,
+    )
     file_iterator = file_generator(
         root=config.paths.raw,
         file_types=file_types,
         excludes=config.indexing.excludes,
-        logger=logger
     )
 
-    for file_data in file_iterator:
+    for file_data in logger.loading_bar("Indexing", file_iterator, n_files):
         _, file_path, file_content = file_data
         file_hash = sha256(file_content.encode("utf-8")).hexdigest()
 

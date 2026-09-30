@@ -39,8 +39,6 @@ def langchain_chunk(
     for doc in documents:
         start = doc.metadata["start_index"]
         end = start + len(doc.page_content)
-        # TEMP
-        assert file_content[start:end] == doc.page_content
         chunks.append(MinimalSource(
             file_path=file_path,
             first_character_index=start,

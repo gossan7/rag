@@ -8,7 +8,7 @@ dependencies = [
     "chromadb>=1.5.9",
     "dotenv>=0.9.9",
     "fire>=0.7.1",
-    "langchain-text-splitters>=1.1.2",
+    "langchain-text-splitters",
     "pydantic>=2.13.4",
     "pyyaml>=6.0.3",
     "sentence-transformers[openvino]==6.1.0",
@@ -28,6 +28,9 @@ where = ["src"]
 [[tool.mypy.overrides]]
 module = ["fire", "xapian"]
 ignore_missing_imports = true
+
+[tool.uv.sources]
+langchain-text-splitters = { git = "https://github.com/langchain-ai/langchain", subdirectory = "libs/text-splitters", rev = "fd822b07c" }
 
 [dependency-groups]
 dev = [

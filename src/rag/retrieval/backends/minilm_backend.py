@@ -1,12 +1,6 @@
-from chromadb.api.types import Embeddings
-from transformers.utils import logging as transformers_logging
-from huggingface_hub.utils import disable_progress_bars
-from sentence_transformers import SentenceTransformer
 from dotenv import load_dotenv
-import chromadb
-import torch
 
-from typing import Literal, cast
+from typing import Literal, cast, TYPE_CHECKING
 from functools import cached_property
 import warnings
 
@@ -16,6 +10,11 @@ from ...aliases import FileData
 from ...config import Config
 from ...logger import Logger
 from .retrieval_backend import RetrievalBackend
+
+if TYPE_CHECKING:
+    from sentence_transformers import SentenceTransformer
+    from chromadb.api.types import Embeddings
+    from chromadb import Metadata, ClientAPI
 
 
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
@@ -32,12 +31,17 @@ class MiniLMBackend(RetrievalBackend):
         self.ids: list[str] = []
         self.documents: list[str] = []
         self.embeddings: Embeddings = []
-        self.metadatas: list[chromadb.Metadata] = []
+        self.metadatas: list[Metadata] = []
 
         super().__init__(config, logger)
 
     @cached_property
-    def model(self) -> SentenceTransformer:
+    def model(self) -> "SentenceTransformer":
+        self.logger.info("Loading MiniLM...")
+        import torch
+        from sentence_transformers import SentenceTransformer
+        from transformers.utils import logging as transformers_logging
+        from huggingface_hub.utils import disable_progress_bars
         transformers_logging.disable_progress_bar()
         disable_progress_bars()
         transformers_logging.set_verbosity_error()
@@ -47,7 +51,6 @@ class MiniLMBackend(RetrievalBackend):
             module=r"optimum\.intel\.openvino\.modeling_base",
         )
         load_dotenv()
-        self.logger.info("Loading MiniLM...")
         if torch.cuda.is_available():
             model = SentenceTransformer(
                 MODEL_NAME,
@@ -75,7 +78,8 @@ class MiniLMBackend(RetrievalBackend):
         return model
 
     @cached_property
-    def client(self) -> chromadb.ClientAPI:
+    def client(self) -> "ClientAPI":
+        import chromadb
         return chromadb.PersistentClient(
             self.path,
             settings=chromadb.Settings(anonymized_telemetry=False)
