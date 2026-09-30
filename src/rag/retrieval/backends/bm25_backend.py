@@ -102,9 +102,9 @@ class BM25Backend(RetrievalBackend):
         query: str,
         k: int
     ) -> list[tuple[MinimalSource, float]]:
-        parsed_query = self.index.parse_query(
+        parsed_query, _ = self.index.parse_query_lenient(
             query=query,
-            default_field_names=["body"]
+            default_field_names=["body"],
         )
 
         searcher = self.index.searcher()

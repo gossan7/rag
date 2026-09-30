@@ -11,6 +11,9 @@ index:
 search:
 	$(PYTHON) -m src search $(ARGS)
 
+search_dataset:
+	$(PYTHON) -m src search_dataset $(ARGS)
+
 profile:
 	$(PYTHON) -m cProfile -o profile.prof -m src index $(ARGS)
 	$(UV) run snakeviz profile.prof

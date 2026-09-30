@@ -10,3 +10,6 @@ class RagCLI:
 
     def search(self, query: str, k: int = 5) -> None:
         self.rag.search(query, k)
+
+    def search_dataset(self, dataset_path, k, save_directory) -> None:
+        self.rag.search_dataset(dataset_path, k, save_directory)
