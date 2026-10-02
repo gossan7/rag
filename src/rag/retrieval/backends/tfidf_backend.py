@@ -4,72 +4,55 @@ from hashlib import sha256
 
 from ...enums import Backend
 from ...data_models import MinimalSource
-from ...aliases import FileData
 from ...config import Config
 from ...logger import Logger
 from .retrieval_backend import RetrievalBackend
 
 
-BATCH_SIZE = 2048
-
-
 class TFIDFBackend(RetrievalBackend):
     backend_type = Backend.TFIDF
 
-    def __init__(self, config: Config, logger: Logger):
+    def __init__(self, config: Config, logger: Logger) -> None:
         self.term_generator = xapian.TermGenerator()
-        self.to_commit = 0
         super().__init__(config, logger)
-
-    def _previous_run_exists(self) -> bool:
-        try:
-            return xapian.Database.check(str(self.path)) == 0
-        except Exception:
-            return False
 
     def _create_index(self) -> None:
         self.database = xapian.WritableDatabase(
-            str(self.path),
+            str(self.index_path),
             xapian.DB_CREATE,
         )
 
     def _load_index(self) -> None:
         self.database = xapian.WritableDatabase(
-            str(self.path),
+            str(self.index_path),
             xapian.DB_OPEN,
         )
 
-    def delete_indexed_file(self, file_path: str) -> None:
-        self.database.delete_document(
-            sha256(file_path.encode("utf-8")).hexdigest()
-        )
-
-    def add_document(
+    def _add_document_to_index(
         self,
         chunk: MinimalSource,
-        file_data: FileData,
+        chunk_content: str
     ) -> None:
-        _, file_path, file_content = file_data
-        start = chunk.first_character_index
-        end = chunk.last_character_index
+        file_path = chunk.file_path
         doc = xapian.Document()
         self.term_generator.set_document(doc)
-        self.term_generator.index_text(file_content[start:end])
+        self.term_generator.index_text(chunk_content)
         doc.set_data(chunk.model_dump_json())
         doc.add_boolean_term(sha256(file_path.encode("utf-8")).hexdigest())
         self.database.add_document(doc)
 
-        self.to_commit += 1
-        if self.to_commit >= BATCH_SIZE:
-            self.database.commit()
-            self.to_commit = 0
+    def _delete_file_from_index(self, file_path: str) -> None:
+        self.database.delete_document(
+            sha256(file_path.encode("utf-8")).hexdigest()
+        )
 
-    def save_index(self) -> None:
+    def _commit_index(self) -> None:
         self.database.commit()
-        self._save_curr_config()
-        self._save_curr_manifest()
 
-    def search_index(
+    def _save_index(self) -> None:
+        pass
+
+    def get_index_hits(
         self,
         query: str,
         k: int

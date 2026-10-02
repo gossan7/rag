@@ -6,7 +6,6 @@ import warnings
 
 from ...enums import Backend
 from ...data_models import MinimalSource
-from ...aliases import FileData
 from ...config import Config
 from ...logger import Logger
 from .retrieval_backend import RetrievalBackend
@@ -19,20 +18,19 @@ if TYPE_CHECKING:
 
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 CPU_BACKEND: Literal['openvino'] = "openvino"
-
-EMBEDDING_BATCH_SIZE = 512
 FLUSH_BATCH_SIZE = 1024
 
 
 class MiniLMBackend(RetrievalBackend):
     backend_type = Backend.MINILM
+    batch_size = 512
 
     def __init__(self, config: Config, logger: Logger) -> None:
         self.ids: list[str] = []
         self.documents: list[str] = []
         self.embeddings: Embeddings = []
         self.metadatas: list[Metadata] = []
-
+        self.to_flush = 0
         super().__init__(config, logger)
 
     @cached_property
@@ -81,31 +79,11 @@ class MiniLMBackend(RetrievalBackend):
     def client(self) -> "ClientAPI":
         import chromadb
         return chromadb.PersistentClient(
-            self.path,
+            self.index_path,
             settings=chromadb.Settings(anonymized_telemetry=False)
         )
 
-    def _embed(self) -> None:
-        if len(self.documents) == 0:
-            return
-
-        self.embeddings.extend(
-            self.model.encode(
-                self.documents,
-                batch_size=EMBEDDING_BATCH_SIZE,
-                normalize_embeddings=True,
-                show_progress_bar=False
-            ).tolist()
-        )
-        self.documents.clear()
-
-        if len(self.embeddings) >= FLUSH_BATCH_SIZE:
-            self._flush()
-
     def _flush(self) -> None:
-        if len(self.ids) == 0:
-            return
-
         self.collection.add(
             ids=self.ids,
             embeddings=self.embeddings,
@@ -115,9 +93,6 @@ class MiniLMBackend(RetrievalBackend):
         self.ids.clear()
         self.embeddings.clear()
         self.metadatas.clear()
-
-    def _previous_run_exists(self) -> bool:
-        return not self._dir_is_empty()
 
     def _create_index(self) -> None:
         self.collection = self.client.get_or_create_collection(
@@ -132,37 +107,47 @@ class MiniLMBackend(RetrievalBackend):
     def _load_index(self) -> None:
         self.collection = self.client.get_collection("minilm")
 
-    def delete_indexed_file(self, file_path: str) -> None:
-        self.collection.delete(where={"file_path": file_path})
-
-    def add_document(
+    def _add_document_to_index(
         self,
         chunk: MinimalSource,
-        file_data: FileData,
+        chunk_content: str
     ) -> None:
         path = chunk.file_path
         start = chunk.first_character_index
         end = chunk.last_character_index
-        _, _, file_content = file_data
 
         self.ids.append(f"{path}:{start}:{end}")
-        self.documents.append(file_content[start:end])
+        self.documents.append(chunk_content)
         self.metadatas.append({
             "file_path": path,
             "first_character_index": start,
             "last_character_index": end
         })
 
-        if len(self.documents) >= EMBEDDING_BATCH_SIZE:
-            self._embed()
+    def _delete_file_from_index(self, file_path: str) -> None:
+        self.collection.delete(where={"file_path": file_path})
 
-    def save_index(self) -> None:
-        self._embed()
-        self._flush()
-        self._save_curr_config()
-        self._save_curr_manifest()
+    def _commit_index(self) -> None:
+        self.embeddings.extend(
+            self.model.encode(
+                self.documents,
+                batch_size=self.batch_size,
+                normalize_embeddings=True,
+                show_progress_bar=False
+            ).tolist()
+        )
+        self.documents.clear()
 
-    def search_index(
+        if self.to_flush >= FLUSH_BATCH_SIZE:
+            self._flush()
+            self.to_flush = 0
+
+    def _save_index(self) -> None:
+        if self.to_flush > 0:
+            self._flush()
+            self.to_flush = 0
+
+    def get_index_hits(
         self,
         query: str,
         k: int

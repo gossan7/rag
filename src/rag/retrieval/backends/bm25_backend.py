@@ -2,13 +2,9 @@ import tantivy
 
 from ...enums import Backend
 from ...data_models import MinimalSource
-from ...aliases import FileData
 from ...config import Config
 from ...logger import Logger
 from .retrieval_backend import RetrievalBackend
-
-
-BATCH_SIZE = 2048
 
 
 class BM25Backend(RetrievalBackend):
@@ -16,10 +12,9 @@ class BM25Backend(RetrievalBackend):
 
     def __init__(self, config: Config, logger: Logger) -> None:
         self._build_schema()
-        self.to_commit = 0
         super().__init__(config, logger)
 
-    def _build_schema(self):
+    def _build_schema(self) -> None:
         builder = tantivy.SchemaBuilder()
         builder.add_text_field(
             name="file_path",
@@ -44,63 +39,48 @@ class BM25Backend(RetrievalBackend):
 
         self.schema = builder.build()
 
-    def _previous_run_exists(self) -> bool:
-        return tantivy.Index.exists(str(self.path))
-
-    def _create_index(self):
-        if self.to_commit == 0:
-            return
-
+    def _create_index(self) -> None:
         self.index = tantivy.Index(
             schema=self.schema,
-            path=str(self.path),
+            path=str(self.index_path),
             reuse=False
         )
         self.writer = self.index.writer()
 
-    def _load_index(self):
+    def _load_index(self) -> None:
         self.index = tantivy.Index(
             schema=self.schema,
-            path=str(self.path),
+            path=str(self.index_path),
             reuse=True
         )
         self.writer = self.index.writer()
 
-    def delete_indexed_file(self, file_path: str) -> None:
-        self.writer.delete_documents(
+    def _add_document_to_index(
+        self,
+        chunk: MinimalSource,
+        chunk_content: str
+    ) -> None:
+        doc = tantivy.Document(
+            file_path=chunk.file_path,
+            body=chunk_content,
+            first_character_index=chunk.first_character_index,
+            last_character_index=chunk.last_character_index
+        )
+        self.writer.add_document(doc)
+
+    def _delete_file_from_index(self, file_path: str) -> None:
+        self.writer.delete_all_documents(
             field_name="file_path",
             field_value=file_path
         )
 
-    def add_document(
-        self,
-        chunk: MinimalSource,
-        file_data: FileData,
-    ) -> None:
-        _, file_path, file_content = file_data
-        start = chunk.first_character_index
-        end = chunk.last_character_index
-
-        doc = tantivy.Document(
-            file_path=file_path,
-            body=file_content[start:end],
-            first_character_index=start,
-            last_character_index=end
-        )
-        self.writer.add_document(doc)
-
-        self.to_commit += 1
-        if self.to_commit >= BATCH_SIZE:
-            self.writer.commit()
-            self.to_commit = 0
-
-    def save_index(self):
+    def _commit_index(self) -> None:
         self.writer.commit()
-        self.index.reload()
-        self._save_curr_config()
-        self._save_curr_manifest()
 
-    def search_index(
+    def _save_index(self) -> None:
+        self.index.reload()
+
+    def get_index_hits(
         self,
         query: str,
         k: int
@@ -118,7 +98,6 @@ class BM25Backend(RetrievalBackend):
 
         out: list[tuple[MinimalSource, float]] = []
         for score, address in results.hits:
-            score = score
             doc = searcher.doc(address)
             source = MinimalSource(
                 file_path=doc["file_path"][0],
