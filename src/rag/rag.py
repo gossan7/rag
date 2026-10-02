@@ -43,7 +43,7 @@ class RAG:
 
     def search(self, query: str, k: int = 5) -> None:
         question = UnansweredQuestion(
-            question_id=sha256(query.strip().encode("utf=8")).hexdigest(),
+            question_id=sha256(query.strip().encode("utf-8")).hexdigest(),
             question=query
         )
 

@@ -69,16 +69,20 @@ class BM25Backend(RetrievalBackend):
         self.writer.add_document(doc)
 
     def _delete_file_from_index(self, file_path: str) -> None:
-        self.writer.delete_all_documents(
+        self.writer.delete_documents(
             field_name="file_path",
             field_value=file_path
         )
+
+    def _delete_all_documents_from_index(self) -> None:
+        self.writer.delete_all_documents()
+        self._commit_index()
 
     def _commit_index(self) -> None:
         self.writer.commit()
 
     def _save_index(self) -> None:
-        self.index.reload()
+        self._commit_index()
 
     def get_index_hits(
         self,

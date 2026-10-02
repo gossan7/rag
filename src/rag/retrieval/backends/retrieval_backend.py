@@ -86,12 +86,29 @@ class RetrievalBackend(ABC):
 
     def begin_index(self, max_chunk_size: int) -> None:
         self.index_path.mkdir(parents=True, exist_ok=True)
-        if not any(self.index_path.rglob(MANIFEST_FILENAME)):
+        if not (self.index_path / Path(MANIFEST_FILENAME)).is_file():
+            if any(self.index_path.iterdir()):
+                raise IndexingError(
+                    "Index directory is invalid. "
+                    f"Remove {str(self.index_path)} or change paths in config."
+                )
             self._create_index()
+            self.cached_ext = set()
         else:
             self._load_previous_config()
             self._load_previous_manifest()
             self._load_index()
+            self.cached_ext = set([
+                ext for ext, ext_cfg in self.config.indexing.file_types.items()
+                if ext_cfg.chunking_method ==
+                self.previous_config.indexing.file_types[ext].chunking_method
+            ])
+
+            if self.previous_manifest.max_chunk_size != max_chunk_size:
+                self.previous_config = None
+                self.previous_manifest = None
+                self._delete_all_documents_from_index()
+                self.cached_ext = set()
 
         self.manifest = Manifest(
             max_chunk_size=max_chunk_size,
@@ -104,15 +121,21 @@ class RetrievalBackend(ABC):
         self.manifest.files[file_path] = file_hash
 
     def need_file(self, file_data: FileData, file_hash: str) -> bool:
-        _, file_path, _ = file_data
+        if self.previous_manifest:
+            if self.previous_manifest.max_chunk_size != \
+                    self.manifest.max_chunk_size:
+                return True
+
+        ext, file_path, _ = file_data
+        if ext not in self.cached_ext:
+            return True
         if self._file_matches_manifest(file_path, file_hash):
             return False
         return True
 
     def prepare_for_file(self, file_data: FileData, file_hash: str) -> None:
         _, file_path, _ = file_data
-        if self._file_in_manifest(file_path):
-            self._delete_file_from_index(file_path)
+        self._delete_file_from_index(file_path)
 
     def add_chunk_to_index(
         self,
@@ -142,6 +165,10 @@ class RetrievalBackend(ABC):
         pass
 
     @abstractmethod
+    def _delete_all_documents_from_index(self) -> None:
+        pass
+
+    @abstractmethod
     def _commit_index(self) -> None:
         pass
 
@@ -159,10 +186,8 @@ class RetrievalBackend(ABC):
         pass
 
     def end_index(self) -> None:
-        if self.to_commit > 0:
-            self._commit_index()
-            self.to_commit = 0
         self._clean_index()
+        self._save_index()
         self._dump_config()
         self._dump_manifest()
         self.previous_config = self.config
@@ -186,5 +211,9 @@ class RetrievalBackend(ABC):
         return search_results
 
     @abstractmethod
-    def get_index_hits(self) -> list[tuple[MinimalSource, float]]:
+    def get_index_hits(
+        self,
+        query: str,
+        k: int
+    ) -> list[tuple[MinimalSource, float]]:
         pass

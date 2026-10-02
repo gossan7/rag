@@ -46,11 +46,19 @@ class TFIDFBackend(RetrievalBackend):
             sha256(file_path.encode("utf-8")).hexdigest()
         )
 
+    def _delete_all_documents_from_index(self) -> None:
+        self.database.close()
+        self.database = xapian.WritableDatabase(
+            str(self.index_path),
+            xapian.DB_CREATE_OR_OVERWRITE,
+        )
+
     def _commit_index(self) -> None:
         self.database.commit()
 
     def _save_index(self) -> None:
-        pass
+        self.database.commit()
+        self.to_commit = 0
 
     def get_index_hits(
         self,

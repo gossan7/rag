@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 
 
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+COLLECTION_NAME = "minilm"
 CPU_BACKEND: Literal['openvino'] = "openvino"
 FLUSH_BATCH_SIZE = 1024
 
@@ -96,7 +97,7 @@ class MiniLMBackend(RetrievalBackend):
 
     def _create_index(self) -> None:
         self.collection = self.client.get_or_create_collection(
-            name="minilm",
+            name=COLLECTION_NAME,
             configuration={
                 "hnsw": {
                     "space": "cosine",
@@ -105,7 +106,7 @@ class MiniLMBackend(RetrievalBackend):
         )
 
     def _load_index(self) -> None:
-        self.collection = self.client.get_collection("minilm")
+        self.collection = self.client.get_collection(COLLECTION_NAME)
 
     def _add_document_to_index(
         self,
@@ -123,9 +124,21 @@ class MiniLMBackend(RetrievalBackend):
             "first_character_index": start,
             "last_character_index": end
         })
+        self.to_flush += 1
 
     def _delete_file_from_index(self, file_path: str) -> None:
         self.collection.delete(where={"file_path": file_path})
+
+    def _delete_all_documents_from_index(self) -> None:
+        self.client.delete_collection(name=COLLECTION_NAME)
+        self.collection = self.client.create_collection(
+            name=COLLECTION_NAME,
+            configuration={
+                "hnsw": {
+                    "space": "cosine",
+                }
+            },
+        )
 
     def _commit_index(self) -> None:
         self.embeddings.extend(
@@ -143,7 +156,10 @@ class MiniLMBackend(RetrievalBackend):
             self.to_flush = 0
 
     def _save_index(self) -> None:
-        if self.to_flush > 0:
+        if self.documents:
+            self._commit_index()
+
+        if self.to_flush:
             self._flush()
             self.to_flush = 0
 
