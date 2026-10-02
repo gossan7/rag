@@ -1,0 +1,8 @@
+backends refactor 
+
+
+move logic to base class (flush etc)
+
+init dont create an index
+
+search first checks for index validity for all backends

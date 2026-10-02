@@ -92,7 +92,9 @@ class MiniLMBackend(RetrievalBackend):
         self.embeddings.extend(
             self.model.encode(
                 self.documents,
-                batch_size=EMBEDDING_BATCH_SIZE
+                batch_size=EMBEDDING_BATCH_SIZE,
+                normalize_embeddings=True,
+                show_progress_bar=False
             ).tolist()
         )
         self.documents.clear()

@@ -9,7 +9,10 @@ def can_merge_sources(source1: MinimalSource, source2: MinimalSource) -> bool:
     return source1.file_path == source2.file_path
 
 
-def merge_sources(source1: MinimalSource, source2: MinimalSource):
+def merge_sources(
+    source1: MinimalSource,
+    source2: MinimalSource
+) -> MinimalSource:
     assert can_merge_sources(source1, source2)
 
     file_path = source1.file_path

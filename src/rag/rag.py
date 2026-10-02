@@ -30,10 +30,18 @@ class RAG:
         self.config: Config = load_config(config_file)
         self.logger = Logger()
 
+    @cached_property
+    def backends(self) -> list[RetrievalBackend]:
+        return [
+            RETRIEVAL_BACKENDS[bkd](self.config, self.logger)
+            for bkd, bkd_config in self.config.retrieval.backends.items()
+            if bkd_config.enabled is True
+        ]
+
     def index(self, max_chunk_size: int) -> None:
         index(self.config, max_chunk_size, self.backends, self.logger)
 
-    def search(self, query: str, k: int = 5):
+    def search(self, query: str, k: int = 5) -> None:
         question = UnansweredQuestion(
             question_id=sha256(query.strip().encode("utf=8")).hexdigest(),
             question=query
@@ -53,7 +61,7 @@ class RAG:
         save_directory: str
     ) -> None:
         input_path = Path(dataset_path)
-        output_path = Path(save_directory) / Path("StudentSearchResults.json")
+        output_path = Path(save_directory) / input_path.name
         dataset = load_dataset(input_path, output_path)
 
         search_results = StudentSearchResults(
@@ -68,21 +76,15 @@ class RAG:
             search_results.search_results.append(
                 search(question, k, self.backends)
             )
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
         dump_results(search_results, output_path)
 
-    def answer(self):
+    def answer(self) -> None:
         pass
 
-    def asnwer_dataset(self):
+    def asnwer_dataset(self) -> None:
         pass
 
-    def evaluate(self):
+    def evaluate(self) -> None:
         pass
-
-    @cached_property
-    def backends(self) -> list[RetrievalBackend]:
-        return [
-            RETRIEVAL_BACKENDS[bkd](self.config, self.logger)
-            for bkd, bkd_config in self.config.retrieval.backends.items()
-            if bkd_config.enabled is True
-        ]

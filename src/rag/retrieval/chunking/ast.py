@@ -20,7 +20,7 @@ class LocatedNode(Protocol):
     end_col_offset: int
 
 
-def get_line_offsets(file_content: str):
+def get_line_offsets(file_content: str) -> list[int]:
     offsets = [-1, 0]
     for line in file_content.splitlines(keepends=True):
         offsets.append(offsets[-1] + len(line))
@@ -49,7 +49,11 @@ def has_boundaries(node: ast.AST) -> bool:
     )
 
 
-def get_boundaries(node: ast.AST, offsets: list[int], file_content: str):
+def get_boundaries(
+    node: ast.AST,
+    offsets: list[int],
+    file_content: str
+) -> tuple[int, int]:
     located = cast(LocatedNode, node)
 
     lineno, col_offset = located.lineno, located.col_offset

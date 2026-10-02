@@ -25,7 +25,10 @@ def load_dataset(path: Path, save_path: Path) -> RagDataset:
     return dataset
 
 
-def dump_results(search_results: StudentSearchResults, save_path: Path):
+def dump_results(
+    search_results: StudentSearchResults,
+    save_path: Path
+) -> None:
     try:
         with open(save_path, mode="w", encoding="utf-8") as f:
             f.write(search_results.model_dump_json(indent=2))

@@ -5,7 +5,7 @@ from collections.abc import Iterable
 
 
 class Logger:
-    def __init__(self):
+    def __init__(self) -> None:
         self.logger = logging.getLogger("rag")
         self.logger.setLevel(logging.INFO)
         self.logger.propagate = False

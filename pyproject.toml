@@ -25,6 +25,13 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.mypy]
+warn_return_any = true
+warn_unused_ignores = true
+ignore_missing_imports = true
+disallow_untyped_defs = true
+check_untyped_defs = true
+
 [[tool.mypy.overrides]]
 module = ["fire", "xapian"]
 ignore_missing_imports = true

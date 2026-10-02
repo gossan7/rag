@@ -48,6 +48,9 @@ class BM25Backend(RetrievalBackend):
         return tantivy.Index.exists(str(self.path))
 
     def _create_index(self):
+        if self.to_commit == 0:
+            return
+
         self.index = tantivy.Index(
             schema=self.schema,
             path=str(self.path),

@@ -51,7 +51,7 @@ class RetrievalBackend(ABC):
             self.prev_config.indexing.file_types[ext].chunking_method
         ])
 
-    def is_cached(self, file_data: FileData, file_hash: str):
+    def is_cached(self, file_data: FileData, file_hash: str) -> bool:
         if self.prev_max_chunk_size != self.curr_max_chunk_size:
             return False
 
