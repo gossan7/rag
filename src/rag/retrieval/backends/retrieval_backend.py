@@ -1,19 +1,23 @@
+from diskcache import Cache
+
 from typing import ClassVar
 from abc import ABC, abstractmethod
 from pathlib import Path
+from hashlib import sha256
 import json
 
 from ...config import Config, load_config, dump_config
 from ...enums import Backend
 from ...data_models import MinimalSource
 from ...aliases import FileData
-from ...errors import IndexingError
+from ...errors import IndexingError, SearchError
 from ...logger import Logger
 from .manifest import Manifest
 
 
 MANIFEST_FILENAME = "manifest.json"
 CONFIG_FILENAME = "config.yaml"
+MAX_CACHE_SIZE = 500
 
 
 class RetrievalBackend(ABC):
@@ -30,6 +34,7 @@ class RetrievalBackend(ABC):
 
         self.previous_config: Config | None = None
         self.previous_manifest: Manifest | None = None
+        self.loaded: bool = False
 
     @abstractmethod
     def _create_index(self) -> None:
@@ -48,7 +53,19 @@ class RetrievalBackend(ABC):
         manifest_path = self.index_path / Path(MANIFEST_FILENAME)
         try:
             with open(manifest_path, encoding="utf-8") as f:
-                self.previous_manifest = Manifest.model_validate(json.load(f))
+                raw = json.load(f)
+                self.previous_manifest = Manifest.model_validate(raw)
+
+                raw_manifest = self.previous_manifest.model_dump(mode="json")
+                canonical = json.dumps(
+                    raw_manifest,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+                self.search_fingerprint = sha256(
+                    canonical.encode("utf-8")
+                ).hexdigest()
+
         except Exception as e:
             raise IndexingError(
                 f"Could not open the manifest at {manifest_path}:\n{e}"
@@ -74,17 +91,27 @@ class RetrievalBackend(ABC):
                 + f"{e}"
             )
 
-    def _file_in_manifest(self, file_path: str) -> bool:
+    def file_in_manifest(self, file_path: str) -> bool:
         if self.previous_manifest is None:
             return False
         return file_path in self.previous_manifest.files
 
-    def _file_matches_manifest(self, file_path: str, file_hash: str) -> bool:
-        if self._file_in_manifest(file_path) is False:
+    def file_matches_manifest(self, file_path: str, file_hash: str) -> bool:
+        if self.file_in_manifest(file_path) is False:
             return False
         return file_hash == self.previous_manifest.files[file_path]
 
     def begin_index(self, max_chunk_size: int) -> None:
+        if self.loaded:
+            if self.previous_manifest is None:
+                return
+            if self.previous_manifest.max_chunk_size != max_chunk_size:
+                self.previous_config = None
+                self.previous_manifest = None
+                self._delete_all_documents_from_index()
+                self.cached_ext = set()
+            return
+
         self.index_path.mkdir(parents=True, exist_ok=True)
         if not (self.index_path / Path(MANIFEST_FILENAME)).is_file():
             if any(self.index_path.iterdir()):
@@ -109,6 +136,7 @@ class RetrievalBackend(ABC):
                 self.previous_manifest = None
                 self._delete_all_documents_from_index()
                 self.cached_ext = set()
+        self.loaded = True
 
         self.manifest = Manifest(
             max_chunk_size=max_chunk_size,
@@ -129,11 +157,14 @@ class RetrievalBackend(ABC):
         ext, file_path, _ = file_data
         if ext not in self.cached_ext:
             return True
-        if self._file_matches_manifest(file_path, file_hash):
+        if self.file_matches_manifest(file_path, file_hash):
             return False
         return True
 
-    def prepare_for_file(self, file_data: FileData, file_hash: str) -> None:
+    def prepare_for_file(self, file_data: FileData) -> None:
+        if self.previous_manifest is None:
+            return
+
         _, file_path, _ = file_data
         self._delete_file_from_index(file_path)
 
@@ -194,11 +225,42 @@ class RetrievalBackend(ABC):
         self.previous_manifest = self.manifest
 
     def begin_search(self) -> None:
-        raise NotImplementedError
+        if self.loaded:
+            return
+
+        if not (self.index_path / Path(MANIFEST_FILENAME)).is_file():
+            raise SearchError(
+                f"Index directory is invalid. {self.index_path}"
+            )
+
+        try:
+            self._load_previous_config()
+            self._load_previous_manifest()
+            self._load_index()
+            self.search_cache = Cache(
+                directory=self.index_path / Path("search_cache"),
+                size_limit=MAX_CACHE_SIZE * 1024 * 1024,
+                eviction_policy="least-recently-used",
+            )
+        except Exception as e:
+            raise SearchError(
+                f"Index directory is invalid. {self.index_path}:\n"
+                f"{e}"
+            )
+        self.loaded = True
 
     def search(self, query: str, k: int) -> dict[MinimalSource, float]:
+        value = self.search_cache.get((query, k, self.search_fingerprint))
+        if value is None:
+            out = self.get_index_hits(query, k)
+            self.search_cache.set((query, k, self.search_fingerprint), out)
+        else:
+            out = [
+                (MinimalSource.model_validate(source), score)
+                for source, score in value
+            ]
+
         search_results: dict[MinimalSource, float] = {}
-        out = self.get_index_hits(query, k)
         out.sort(key=lambda x: x[1], reverse=True)
         weight = self.config.retrieval.backends[self.backend_type].weight
         rank = 0

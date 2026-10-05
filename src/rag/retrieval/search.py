@@ -16,7 +16,7 @@ def search(
     if not query or k <= 0:
         return MinimalSearchResults(
             question_id=question.question_id,
-            question=query,
+            question=question.question,
             retrieved_sources=[]
         )
 
@@ -31,7 +31,7 @@ def search(
 
     search_results = MinimalSearchResults(
         question_id=question.question_id,
-        question=query,
+        question=question.question,
         retrieved_sources=out
     )
 

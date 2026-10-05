@@ -38,12 +38,14 @@ class TFIDFBackend(RetrievalBackend):
         self.term_generator.set_document(doc)
         self.term_generator.index_text(chunk_content)
         doc.set_data(chunk.model_dump_json())
-        doc.add_boolean_term(sha256(file_path.encode("utf-8")).hexdigest())
+        doc.add_boolean_term(
+            'F' + sha256(file_path.encode("utf-8")).hexdigest()
+        )
         self.database.add_document(doc)
 
     def _delete_file_from_index(self, file_path: str) -> None:
         self.database.delete_document(
-            sha256(file_path.encode("utf-8")).hexdigest()
+            'F' + sha256(file_path.encode("utf-8")).hexdigest()
         )
 
     def _delete_all_documents_from_index(self) -> None:

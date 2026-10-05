@@ -57,7 +57,7 @@ def index(
             continue
 
         for bkd in dirty:
-            bkd.prepare_for_file(file_data, file_hash)
+            bkd.prepare_for_file(file_data)
 
         for chunk in chunk_file(config, file_data, max_chunk_size):
             chunk_content = file_content[

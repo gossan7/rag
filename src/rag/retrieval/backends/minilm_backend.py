@@ -19,12 +19,18 @@ if TYPE_CHECKING:
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 COLLECTION_NAME = "minilm"
 CPU_BACKEND: Literal['openvino'] = "openvino"
-FLUSH_BATCH_SIZE = 1024
+FLUSH_BATCH_SIZE = 4
+
+warnings.filterwarnings(
+    "ignore",
+    message=r"invalid escape sequence '\\\.'",
+    category=SyntaxWarning,
+)
 
 
 class MiniLMBackend(RetrievalBackend):
     backend_type = Backend.MINILM
-    batch_size = 512
+    batch_size = 1024
 
     def __init__(self, config: Config, logger: Logger) -> None:
         self.ids: list[str] = []
@@ -44,15 +50,11 @@ class MiniLMBackend(RetrievalBackend):
         transformers_logging.disable_progress_bar()
         disable_progress_bars()
         transformers_logging.set_verbosity_error()
-        warnings.filterwarnings(
-            "ignore",
-            category=SyntaxWarning,
-            module=r"optimum\.intel\.openvino\.modeling_base",
-        )
         load_dotenv()
+
         if torch.cuda.is_available():
             model = SentenceTransformer(
-                MODEL_NAME,
+                model_name_or_path=MODEL_NAME,
                 device="cuda",
                 model_kwargs={"torch_dtype": torch.float16},
             )
@@ -62,7 +64,7 @@ class MiniLMBackend(RetrievalBackend):
                 " (quantized)"
             )
             model = SentenceTransformer(
-                MODEL_NAME,
+                model_name_or_path=MODEL_NAME,
                 backend=CPU_BACKEND,
                 device="cpu",
                 model_kwargs={
@@ -85,11 +87,16 @@ class MiniLMBackend(RetrievalBackend):
         )
 
     def _flush(self) -> None:
-        self.collection.add(
-            ids=self.ids,
-            embeddings=self.embeddings,
-            metadatas=self.metadatas
-        )
+        batch_size = self.client.get_max_batch_size()
+
+        for start in range(0, len(self.ids), batch_size):
+            end = min(start + batch_size, len(self.ids))
+
+            self.collection.add(
+                ids=self.ids[start:end],
+                embeddings=self.embeddings[start:end],
+                metadatas=self.metadatas[start:end],
+            )
 
         self.ids.clear()
         self.embeddings.clear()
@@ -124,7 +131,6 @@ class MiniLMBackend(RetrievalBackend):
             "first_character_index": start,
             "last_character_index": end
         })
-        self.to_flush += 1
 
     def _delete_file_from_index(self, file_path: str) -> None:
         self.collection.delete(where={"file_path": file_path})
@@ -151,6 +157,7 @@ class MiniLMBackend(RetrievalBackend):
         )
         self.documents.clear()
 
+        self.to_flush += 1
         if self.to_flush >= FLUSH_BATCH_SIZE:
             self._flush()
             self.to_flush = 0
@@ -158,6 +165,7 @@ class MiniLMBackend(RetrievalBackend):
     def _save_index(self) -> None:
         if self.documents:
             self._commit_index()
+            self.to_commit = 0
 
         if self.to_flush:
             self._flush()

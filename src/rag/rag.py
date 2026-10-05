@@ -15,6 +15,7 @@ from .retrieval.backends import (
 from .logger import Logger
 from .retrieval.index import index
 from .retrieval.search import search
+from .retrieval.check import check
 from .retrieval.dataset import load_dataset, dump_results
 
 
@@ -29,6 +30,7 @@ class RAG:
     def __init__(self, config_file: str):
         self.config: Config = load_config(config_file)
         self.logger = Logger()
+        self.sanity_checked = False
 
     @cached_property
     def backends(self) -> list[RetrievalBackend]:
@@ -42,6 +44,10 @@ class RAG:
         index(self.config, max_chunk_size, self.backends, self.logger)
 
     def search(self, query: str, k: int = 5) -> None:
+        if not self.sanity_checked:
+            check(self.config, self.backends, self.logger)
+            self.sanity_checked = True
+
         question = UnansweredQuestion(
             question_id=sha256(query.strip().encode("utf-8")).hexdigest(),
             question=query
@@ -60,6 +66,10 @@ class RAG:
         k: int,
         save_directory: str
     ) -> None:
+        if not self.sanity_checked:
+            check(self.config, self.backends, self.logger)
+            self.sanity_checked = True
+
         input_path = Path(dataset_path)
         output_path = Path(save_directory) / input_path.name
         dataset = load_dataset(input_path, output_path)
