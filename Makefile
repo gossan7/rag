@@ -90,7 +90,7 @@ clean:
 	find . -type d -name '__pycache__' -prune -exec rm -rf {} +
 	find . -type d -name '*.egg-info' -prune -exec rm -rf {} +
 
-dclean: clean
+dclean:
 	rm -rf data/processed data/output
 
 fclean: dclean

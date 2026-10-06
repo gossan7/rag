@@ -1,7 +1,10 @@
 import logging
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
+from typing import TypeVar
+
+T = TypeVar("T")
 
 
 class Logger:
@@ -28,9 +31,9 @@ class Logger:
     def loading_bar(
         self,
         name: str,
-        iterable: Iterable,
+        iterable: Iterable[T],
         total: int | None = None,
-    ) -> Iterable:
+    ) -> Iterator[T]:
         with logging_redirect_tqdm(loggers=[self.logger]):
             yield from tqdm(
                 iterable,

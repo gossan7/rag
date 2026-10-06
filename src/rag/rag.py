@@ -15,7 +15,9 @@ from .retrieval.backends import (
 from .logger import Logger
 from .retrieval.index import index
 from .retrieval.search import search
-from .retrieval.dataset import load_dataset, dump_results
+from .retrieval.check import check
+from .dataset import load_dataset, dump_results
+from .evaluation import evaluate
 
 
 RETRIEVAL_BACKENDS: dict[Backend, Type[RetrievalBackend]] = {
@@ -29,6 +31,7 @@ class RAG:
     def __init__(self, config_file: str):
         self.config: Config = load_config(config_file)
         self.logger = Logger()
+        self.sanity_checked = False
 
     @cached_property
     def backends(self) -> list[RetrievalBackend]:
@@ -42,8 +45,12 @@ class RAG:
         index(self.config, max_chunk_size, self.backends, self.logger)
 
     def search(self, query: str, k: int = 5) -> None:
+        if not self.sanity_checked:
+            check(self.config, self.backends, self.logger)
+            self.sanity_checked = True
+
         question = UnansweredQuestion(
-            question_id=sha256(query.strip().encode("utf=8")).hexdigest(),
+            question_id=sha256(query.strip().encode("utf-8")).hexdigest(),
             question=query
         )
 
@@ -60,9 +67,13 @@ class RAG:
         k: int,
         save_directory: str
     ) -> None:
+        if not self.sanity_checked:
+            check(self.config, self.backends, self.logger)
+            self.sanity_checked = True
+
         input_path = Path(dataset_path)
         output_path = Path(save_directory) / input_path.name
-        dataset = load_dataset(input_path, output_path)
+        dataset = load_dataset(input_path)
 
         search_results = StudentSearchResults(
             search_results=[],
@@ -80,11 +91,20 @@ class RAG:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         dump_results(search_results, output_path)
 
+    def evaluate(
+        self,
+        student_search_results_path: str,
+        dataset_path: str
+    ) -> None:
+        evaluate(
+            self.config,
+            student_search_results_path,
+            dataset_path,
+            self.logger
+        )
+
     def answer(self) -> None:
         pass
 
     def asnwer_dataset(self) -> None:
-        pass
-
-    def evaluate(self) -> None:
         pass

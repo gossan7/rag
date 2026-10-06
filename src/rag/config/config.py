@@ -67,6 +67,23 @@ class RetrievalConfig(BaseConfig):
         return self
 
 
+class EvaluationConfig(BaseConfig):
+    recall: list[int]
+    min_iou: float = Field(le=1.0, ge=0.05)
+
+    @model_validator(mode="after")
+    def validate_config(self) -> "EvaluationConfig":
+        if not self.recall:
+            raise ValueError(
+                "Evaluation should have at least one value for recall."
+            )
+        if any((k <= 0 for k in self.recall)):
+            raise ValueError(
+                "Evaliation recall should all be >= 1."
+            )
+        return self
+
+
 class SearchConfig(BaseConfig):
     auto_translate: bool
 
@@ -80,5 +97,6 @@ class Config(BaseConfig):
     paths: PathsConfig
     indexing: IndexingConfig
     retrieval: RetrievalConfig
+    evaluation: EvaluationConfig
     search: SearchConfig
     answer: AnswerConfig

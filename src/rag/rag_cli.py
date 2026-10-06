@@ -37,3 +37,12 @@ class RagCLI:
     ) -> None:
         self._config_file = config_file
         self.rag.search_dataset(dataset_path, k, save_directory)
+
+    def evaluate(
+        self,
+        student_search_results_path: str,
+        dataset_path: str,
+        config_file: str = "default.yaml"
+    ) -> None:
+        self._config_file = config_file
+        self.rag.evaluate(student_search_results_path, dataset_path)

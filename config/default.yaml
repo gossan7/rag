@@ -3,7 +3,7 @@
 # Specifies path for: files to process, directory to save index, datasets, and output.
 # Do not change unless you know what you're doing
 paths:
-  raw: "data/raw"
+  raw: "data/raw/"
   processed: "data/processed"
   datasets: "data/datasets"
   output: "data/output"
@@ -16,7 +16,7 @@ indexing:
   file_types:
     .py:
       chunking_method: "ast"
-      enabled: true
+      enabled: false
     .md:
       chunking_method: "langchain"
       enabled: true
@@ -38,9 +38,16 @@ retrieval:
       weight: 1.0
       path: "bm25"
     minilm:
-      enabled: true
+      enabled: false
       weight: 1.0
       path: "minilm"
+
+
+# Defines recall@k that will be tested with evaluate.
+# Subject shows: 1, 3, 5, 10.
+evaluation:
+  recall: [1, 3, 5, 10]
+  min_iou: 0.05
 
 
 # Enables auto-translate in english for queries. Can make results worse if precise words are needed.

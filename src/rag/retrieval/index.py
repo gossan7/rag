@@ -34,6 +34,7 @@ def index(
         file_types=file_types,
         excludes=config.indexing.excludes,
     )
+
     file_iterator = file_generator(
         root=config.paths.raw,
         file_types=file_types,
@@ -41,7 +42,7 @@ def index(
     )
 
     for file_data in logger.loading_bar("Indexing", file_iterator, n_files):
-        _, file_path, file_content = file_data
+        _, _, file_content = file_data
         file_hash = sha256(file_content.encode("utf-8")).hexdigest()
 
         for bkd in backends:
@@ -49,21 +50,22 @@ def index(
 
         dirty = [
             bkd for bkd in backends
-            if not bkd.is_cached(file_data, file_hash)
+            if bkd.need_file(file_data, file_hash)
         ]
 
         if not dirty:
             continue
 
         for bkd in dirty:
-            if bkd.was_indexed(file_path):
-                bkd.delete_indexed_file(file_path)
+            bkd.prepare_for_file(file_data)
 
         for chunk in chunk_file(config, file_data, max_chunk_size):
+            chunk_content = file_content[
+                chunk.first_character_index:chunk.last_character_index
+            ]
+
             for bkd in dirty:
-                bkd.add_document(chunk, file_data)
+                bkd.add_chunk_to_index(chunk, chunk_content)
 
     for backend in backends:
-        backend.clean_index()
-        backend.save_index()
         backend.end_index()
