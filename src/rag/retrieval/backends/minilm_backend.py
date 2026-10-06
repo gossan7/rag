@@ -1,8 +1,9 @@
 from dotenv import load_dotenv
 
-from typing import Literal, cast, TYPE_CHECKING
+from typing import Literal, Callable, cast, TYPE_CHECKING
 from functools import cached_property
 import warnings
+import os
 
 from ...enums import Backend
 from ...data_models import MinimalSource
@@ -12,9 +13,11 @@ from .retrieval_backend import RetrievalBackend
 
 if TYPE_CHECKING:
     from sentence_transformers import SentenceTransformer
-    from chromadb.api.types import Embeddings
-    from chromadb import Metadata, ClientAPI
+    from chromadb.api import ClientAPI
+    from chromadb.api.types import Embeddings, Metadata
 
+
+os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
 
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 COLLECTION_NAME = "minilm"
@@ -46,10 +49,16 @@ class MiniLMBackend(RetrievalBackend):
         import torch
         from sentence_transformers import SentenceTransformer
         from transformers.utils import logging as transformers_logging
-        from huggingface_hub.utils import disable_progress_bars
-        transformers_logging.disable_progress_bar()
-        disable_progress_bars()
-        transformers_logging.set_verbosity_error()
+        disable_progress_bar = cast(
+            Callable[[], None],
+            transformers_logging.disable_progress_bar,
+        )
+        set_verbosity_error = cast(
+            Callable[[], None],
+            transformers_logging.set_verbosity_error,
+        )
+        disable_progress_bar()
+        set_verbosity_error()
         load_dotenv()
 
         if torch.cuda.is_available():
@@ -80,10 +89,11 @@ class MiniLMBackend(RetrievalBackend):
 
     @cached_property
     def client(self) -> "ClientAPI":
+        from chromadb.config import Settings
         import chromadb
         return chromadb.PersistentClient(
             self.index_path,
-            settings=chromadb.Settings(anonymized_telemetry=False)
+            settings=Settings(anonymized_telemetry=False)
         )
 
     def _flush(self) -> None:
@@ -188,16 +198,23 @@ class MiniLMBackend(RetrievalBackend):
             include=["metadatas", "distances"],
         )
 
-        metadatas = cast(list, results["metadatas"])
-        distances = cast(list, results["distances"])
+        metadatas = cast(
+            list[list[dict[str, str | int]]],
+            results["metadatas"]
+        )
+        distances = cast(list[list[float]], results["distances"])
 
         out: list[tuple[MinimalSource, float]] = []
         for metadata, distance in zip(metadatas[0], distances[0]):
+            file_path = cast(str, metadata["file_path"])
+            start = cast(int, metadata["first_character_index"])
+            end = cast(int, metadata["last_character_index"])
+
             out.append((
                 MinimalSource(
-                    file_path=metadata["file_path"],
-                    first_character_index=metadata["first_character_index"],
-                    last_character_index=metadata["last_character_index"]
+                    file_path=file_path,
+                    first_character_index=start,
+                    last_character_index=end
                 ),
                 -distance
             ))

@@ -7,7 +7,7 @@ from hashlib import sha256
 import json
 
 from ...config import Config, load_config, dump_config
-from ...enums import Backend
+from ...enums import Backend, FileType
 from ...data_models import MinimalSource
 from ...aliases import FileData
 from ...errors import IndexingError, SearchError
@@ -34,6 +34,7 @@ class RetrievalBackend(ABC):
 
         self.previous_config: Config | None = None
         self.previous_manifest: Manifest | None = None
+        self.cached_ext: set[FileType] = set()
         self.loaded: bool = False
 
     @abstractmethod
@@ -97,6 +98,8 @@ class RetrievalBackend(ABC):
         return file_path in self.previous_manifest.files
 
     def file_matches_manifest(self, file_path: str, file_hash: str) -> bool:
+        if self.previous_manifest is None:
+            return False
         if self.file_in_manifest(file_path) is False:
             return False
         return file_hash == self.previous_manifest.files[file_path]
@@ -125,6 +128,9 @@ class RetrievalBackend(ABC):
             self._load_previous_config()
             self._load_previous_manifest()
             self._load_index()
+            assert isinstance(self.previous_config, Config)
+            assert isinstance(self.previous_manifest, Manifest)
+
             self.cached_ext = set([
                 ext for ext, ext_cfg in self.config.indexing.file_types.items()
                 if ext_cfg.chunking_method ==

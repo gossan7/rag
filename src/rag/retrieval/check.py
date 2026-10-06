@@ -22,6 +22,9 @@ def check(
         bkd.begin_search()
         bkd_name = bkd.backend_type.value
         prev = bkd.previous_config
+        if prev is None:
+            raise SearchError(f"{bkd_name} index is invalid (fatal).")
+
         for ftype, prev_ftype_config in prev.indexing.file_types.items():
             ftype_config = config.indexing.file_types[ftype]
             if not ftype_config.enabled and not prev_ftype_config.enabled:
@@ -73,13 +76,17 @@ def check(
                 incorrect_files[bkd.backend_type] += 1
 
     for bkd in backends:
+        bkd_name = bkd.backend_type.value
+        if bkd.previous_manifest is None:
+            raise SearchError(f"{bkd_name} index is invalid (fatal).")
+
         missing = len(all_files - bkd.previous_manifest.files.keys())
         incorrect = incorrect_files[bkd.backend_type]
         extra = len(bkd.previous_manifest.files.keys() - all_files)
 
         if missing or incorrect or extra:
             logger.warning(
-                f"{bkd.backend_type.value} is invalid: "
+                f"{bkd_name} is invalid: "
                 f"{missing}/{n_files} missing files, "
                 f"{incorrect}/{n_files} changed files, "
                 f"{extra} extra files"

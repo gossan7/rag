@@ -16,7 +16,8 @@ from .logger import Logger
 from .retrieval.index import index
 from .retrieval.search import search
 from .retrieval.check import check
-from .retrieval.dataset import load_dataset, dump_results
+from .dataset import load_dataset, dump_results
+from .evaluation import evaluate
 
 
 RETRIEVAL_BACKENDS: dict[Backend, Type[RetrievalBackend]] = {
@@ -72,7 +73,7 @@ class RAG:
 
         input_path = Path(dataset_path)
         output_path = Path(save_directory) / input_path.name
-        dataset = load_dataset(input_path, output_path)
+        dataset = load_dataset(input_path)
 
         search_results = StudentSearchResults(
             search_results=[],
@@ -90,11 +91,20 @@ class RAG:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         dump_results(search_results, output_path)
 
+    def evaluate(
+        self,
+        student_search_results_path: str,
+        dataset_path: str
+    ) -> None:
+        evaluate(
+            self.config,
+            student_search_results_path,
+            dataset_path,
+            self.logger
+        )
+
     def answer(self) -> None:
         pass
 
     def asnwer_dataset(self) -> None:
-        pass
-
-    def evaluate(self) -> None:
         pass

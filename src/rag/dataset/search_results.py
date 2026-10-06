@@ -3,26 +3,28 @@ from pydantic import ValidationError
 from pathlib import Path
 import json
 
-from ..data_models import RagDataset, StudentSearchResults
+from ..data_models import StudentSearchResults
 from ..errors import SearchError
 
 
-def load_dataset(path: Path, save_path: Path) -> RagDataset:
+def load_results(path: Path) -> StudentSearchResults:
     if not path.is_file():
         raise SearchError(f"Could not open {path}")
 
     try:
         with open(path, mode="r", encoding="utf-8") as f:
-            raw_dataset = json.load(f)
+            raw_search_results = json.load(f)
     except Exception as e:
         raise SearchError(f"Could not open {path}:\n{e}")
 
     try:
-        dataset = RagDataset.model_validate(raw_dataset)
+        search_results = StudentSearchResults.model_validate(
+            raw_search_results
+        )
     except ValidationError as e:
-        raise SearchError(f"Invalid dataset {path}:\n{e}")
+        raise SearchError(f"Invalid search results {path}:\n{e}")
 
-    return dataset
+    return search_results
 
 
 def dump_results(

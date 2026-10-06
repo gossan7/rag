@@ -2,10 +2,12 @@ from .rag_error import RagError
 from .config_error import ConfigError
 from .indexing_error import IndexingError
 from .search_error import SearchError
+from .evaluation_error import EvaluationError
 
 __all__ = [
     "RagError",
     "ConfigError",
     "IndexingError",
-    "SearchError"
+    "SearchError",
+    "EvaluationError"
 ]
