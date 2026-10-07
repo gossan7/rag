@@ -5,7 +5,7 @@ from functools import cached_property
 import warnings
 import os
 
-from ...enums import Backend
+from ...enums import Backend, FileType
 from ...data_models import MinimalSource
 from ...config import Config
 from ...logger import Logger
@@ -127,6 +127,7 @@ class MiniLMBackend(RetrievalBackend):
 
     def _add_document_to_index(
         self,
+        file_type: FileType,
         chunk: MinimalSource,
         chunk_content: str
     ) -> None:
@@ -137,6 +138,7 @@ class MiniLMBackend(RetrievalBackend):
         self.ids.append(f"{path}:{start}:{end}")
         self.documents.append(chunk_content)
         self.metadatas.append({
+            "file_type": file_type.value,
             "file_path": path,
             "first_character_index": start,
             "last_character_index": end
@@ -144,6 +146,9 @@ class MiniLMBackend(RetrievalBackend):
 
     def _delete_file_from_index(self, file_path: str) -> None:
         self.collection.delete(where={"file_path": file_path})
+
+    def _delete_file_type_from_index(self, file_type: FileType) -> None:
+        self.collection.delete(where={"file_type": file_type.value})
 
     def _delete_all_documents_from_index(self) -> None:
         self.client.delete_collection(name=COLLECTION_NAME)

@@ -15,8 +15,10 @@ def evaluate(
         student_search_results_path, dataset_path
     )
 
-    full_recall = {k: 0 for k in config.evaluation.recall}
-    all_recall = sorted(config.evaluation.recall)
+    full_recall: dict[int, float] = {k: 0.0 for k in config.evaluation.recall}
+    all_recall: list[int] = sorted(config.evaluation.recall)
+    correct: set[int] = set()
+    incorrect: set[int] = set()
 
     for id in logger.loading_bar("Evaluating", question_ids):
         found = set()
@@ -30,7 +32,7 @@ def evaluate(
 
         for i, r_source in enumerate(result_sources[id]):
             if i >= all_recall[-1]:
-                continue
+                break
 
             for j, t_source in enumerate(truth_sources[id]):
                 if j in found:
@@ -43,18 +45,32 @@ def evaluate(
 
             if i + 1 in all_recall:
                 full_recall[i + 1] += recall / n_sources
+                correct.add(i + 1)
 
         if n_results < all_recall[-1]:
-            for j in range(i+1, all_recall[-1]):
-                if j + 1 in all_recall:
-                    full_recall[j + 1] += recall / n_sources
+            for i in range(n_results, all_recall[-1]):
+                if i + 1 in all_recall:
+                    full_recall[i + 1] += recall / n_sources
+                    incorrect.add(i + 1)
+
+    estimated = correct & incorrect
+    correct = correct - estimated
+    incorrect = incorrect - estimated
 
     n_questions = len(question_ids)
     for k, v in full_recall.items():
         full_recall[k] = (v / n_questions)
 
     print(f"Questions evaluated: {n_questions}")
+
     for k in all_recall:
+        if k in incorrect:
+            confidence = "(lower bound)"
+        elif k in estimated:
+            confidence = "(estimated)"
+        else:
+            confidence = ""
+
         score = full_recall[k]
         percent = score * 100
-        print(f"Recall@{k}: {score:.2f} ({(percent):.2f})")
+        print(f"Recall@{k}: {score:.2f} ({(percent):.2f})", confidence)

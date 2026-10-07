@@ -42,7 +42,7 @@ def index(
     )
 
     for file_data in logger.loading_bar("Indexing", file_iterator, n_files):
-        _, _, file_content = file_data
+        file_type, _, file_content = file_data
         file_hash = sha256(file_content.encode("utf-8")).hexdigest()
 
         for bkd in backends:
@@ -65,7 +65,7 @@ def index(
             ]
 
             for bkd in dirty:
-                bkd.add_chunk_to_index(chunk, chunk_content)
+                bkd.add_chunk_to_index(file_type, chunk, chunk_content)
 
     for backend in backends:
         backend.end_index()

@@ -2,7 +2,7 @@ import xapian
 
 from hashlib import sha256
 
-from ...enums import Backend
+from ...enums import Backend, FileType
 from ...data_models import MinimalSource
 from ...config import Config
 from ...logger import Logger
@@ -30,6 +30,7 @@ class TFIDFBackend(RetrievalBackend):
 
     def _add_document_to_index(
         self,
+        file_type: FileType,
         chunk: MinimalSource,
         chunk_content: str
     ) -> None:
@@ -41,11 +42,19 @@ class TFIDFBackend(RetrievalBackend):
         doc.add_boolean_term(
             'F' + sha256(file_path.encode("utf-8")).hexdigest()
         )
+        doc.add_boolean_term(
+            'E' + sha256(file_type.value.encode("utf-8")).hexdigest()
+        )
         self.database.add_document(doc)
 
     def _delete_file_from_index(self, file_path: str) -> None:
         self.database.delete_document(
             'F' + sha256(file_path.encode("utf-8")).hexdigest()
+        )
+
+    def _delete_file_type_from_index(self, file_type: FileType) -> None:
+        return self.database.delete_document(
+            'E' + sha256(file_type.value.encode("utf-8")).hexdigest()
         )
 
     def _delete_all_documents_from_index(self) -> None:

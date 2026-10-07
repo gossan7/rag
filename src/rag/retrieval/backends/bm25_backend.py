@@ -1,6 +1,6 @@
 import tantivy
 
-from ...enums import Backend
+from ...enums import Backend, FileType
 from ...data_models import MinimalSource
 from ...config import Config
 from ...logger import Logger
@@ -16,6 +16,12 @@ class BM25Backend(RetrievalBackend):
 
     def _build_schema(self) -> None:
         builder = tantivy.SchemaBuilder()
+        builder.add_text_field(
+            name="file_type",
+            stored=True,
+            tokenizer_name="raw",
+            index_option="basic"
+        )
         builder.add_text_field(
             name="file_path",
             stored=True,
@@ -57,10 +63,12 @@ class BM25Backend(RetrievalBackend):
 
     def _add_document_to_index(
         self,
+        file_type: FileType,
         chunk: MinimalSource,
         chunk_content: str
     ) -> None:
         doc = tantivy.Document(
+            file_type=file_type.value,
             file_path=chunk.file_path,
             body=chunk_content,
             first_character_index=chunk.first_character_index,
@@ -72,6 +80,12 @@ class BM25Backend(RetrievalBackend):
         self.writer.delete_documents(
             field_name="file_path",
             field_value=file_path
+        )
+
+    def _delete_file_type_from_index(self, file_type: FileType) -> None:
+        self.writer.delete_documents(
+            field_name="file_type",
+            field_value=file_type.value
         )
 
     def _delete_all_documents_from_index(self) -> None:

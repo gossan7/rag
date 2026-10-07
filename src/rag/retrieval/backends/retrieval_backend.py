@@ -17,7 +17,7 @@ from .manifest import Manifest
 
 MANIFEST_FILENAME = "manifest.json"
 CONFIG_FILENAME = "config.yaml"
-MAX_CACHE_SIZE = 500
+MAX_CACHE_SIZE = 512
 
 
 class RetrievalBackend(ABC):
@@ -36,6 +36,7 @@ class RetrievalBackend(ABC):
         self.previous_manifest: Manifest | None = None
         self.cached_ext: set[FileType] = set()
         self.loaded: bool = False
+        self.search_ready: bool = False
 
     @abstractmethod
     def _create_index(self) -> None:
@@ -58,11 +59,22 @@ class RetrievalBackend(ABC):
                 self.previous_manifest = Manifest.model_validate(raw)
 
                 raw_manifest = self.previous_manifest.model_dump(mode="json")
-                canonical = json.dumps(
+                raw_filetypes = self.previous_config.indexing.model_dump(
+                    mode="json"
+                )["file_types"]
+
+                canonical_manifest = json.dumps(
                     raw_manifest,
                     sort_keys=True,
-                    separators=(",", ":"),
+                    separators=(",", ":")
                 )
+                canonical_filetypes = json.dumps(
+                    raw_filetypes,
+                    sort_keys=True,
+                    separators=(",", ":")
+                )
+
+                canonical = canonical_manifest + canonical_filetypes
                 self.search_fingerprint = sha256(
                     canonical.encode("utf-8")
                 ).hexdigest()
@@ -106,6 +118,8 @@ class RetrievalBackend(ABC):
 
     def begin_index(self, max_chunk_size: int) -> None:
         if self.loaded:
+            self.manifest = Manifest(max_chunk_size=max_chunk_size, files=[])
+            self.to_commit = 0
             if self.previous_manifest is None:
                 return
             if self.previous_manifest.max_chunk_size != max_chunk_size:
@@ -131,17 +145,25 @@ class RetrievalBackend(ABC):
             assert isinstance(self.previous_config, Config)
             assert isinstance(self.previous_manifest, Manifest)
 
-            self.cached_ext = set([
-                ext for ext, ext_cfg in self.config.indexing.file_types.items()
-                if ext_cfg.chunking_method ==
-                self.previous_config.indexing.file_types[ext].chunking_method
-            ])
-
             if self.previous_manifest.max_chunk_size != max_chunk_size:
                 self.previous_config = None
                 self.previous_manifest = None
                 self._delete_all_documents_from_index()
                 self.cached_ext = set()
+
+            else:
+                self.cached_ext = set()
+                for ext, cfg in self.config.indexing.file_types.items():
+                    prev_cfg = self.previous_config.indexing.file_types[ext]
+                    if prev_cfg.enabled and cfg.enabled:
+                        if prev_cfg.chunking_method == cfg.chunking_method:
+                            self.cached_ext.add(ext)
+                        else:
+                            self._delete_file_type_from_index(ext)
+
+                    elif prev_cfg.enabled and not cfg.enabled:
+                        self._delete_file_type_from_index(ext)
+
         self.loaded = True
 
         self.manifest = Manifest(
@@ -171,15 +193,18 @@ class RetrievalBackend(ABC):
         if self.previous_manifest is None:
             return
 
-        _, file_path, _ = file_data
-        self._delete_file_from_index(file_path)
+        ext, file_path, _ = file_data
+        if ext in self.cached_ext and self.file_in_manifest(file_path):
+            self._delete_file_from_index(file_path)
 
     def add_chunk_to_index(
         self,
+        file_type: FileType,
         chunk: MinimalSource,
         chunk_content: str
     ) -> None:
         self._add_document_to_index(
+            file_type=file_type,
             chunk=chunk,
             chunk_content=chunk_content
         )
@@ -192,6 +217,7 @@ class RetrievalBackend(ABC):
     @abstractmethod
     def _add_document_to_index(
         self,
+        file_type: FileType,
         chunk: MinimalSource,
         chunk_content: str
     ) -> None:
@@ -199,6 +225,10 @@ class RetrievalBackend(ABC):
 
     @abstractmethod
     def _delete_file_from_index(self, file_path: str) -> None:
+        pass
+
+    @abstractmethod
+    def _delete_file_type_from_index(self, file_type: FileType) -> None:
         pass
 
     @abstractmethod
