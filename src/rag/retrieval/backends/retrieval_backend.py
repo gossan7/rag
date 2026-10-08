@@ -35,15 +35,26 @@ class RetrievalBackend(ABC):
         self.previous_config: Config | None = None
         self.previous_manifest: Manifest | None = None
         self.cached_ext: set[FileType] = set()
-        self.loaded: bool = False
         self.search_ready: bool = False
 
     @abstractmethod
-    def _create_index(self) -> None:
+    def _open_writer(self) -> None:
         pass
 
     @abstractmethod
-    def _load_index(self) -> None:
+    def _close_writer(self) -> None:
+        pass
+
+    @abstractmethod
+    def _open_reader(self) -> None:
+        pass
+
+    @abstractmethod
+    def _close_reader(self) -> None:
+        pass
+
+    @abstractmethod
+    def _create_index(self) -> None:
         pass
 
     def _load_previous_config(self) -> None:
@@ -117,18 +128,6 @@ class RetrievalBackend(ABC):
         return file_hash == self.previous_manifest.files[file_path]
 
     def begin_index(self, max_chunk_size: int) -> None:
-        if self.loaded:
-            self.manifest = Manifest(max_chunk_size=max_chunk_size, files=[])
-            self.to_commit = 0
-            if self.previous_manifest is None:
-                return
-            if self.previous_manifest.max_chunk_size != max_chunk_size:
-                self.previous_config = None
-                self.previous_manifest = None
-                self._delete_all_documents_from_index()
-                self.cached_ext = set()
-            return
-
         self.index_path.mkdir(parents=True, exist_ok=True)
         if not (self.index_path / Path(MANIFEST_FILENAME)).is_file():
             if any(self.index_path.iterdir()):
@@ -141,7 +140,7 @@ class RetrievalBackend(ABC):
         else:
             self._load_previous_config()
             self._load_previous_manifest()
-            self._load_index()
+            self._open_writer()
             assert isinstance(self.previous_config, Config)
             assert isinstance(self.previous_manifest, Manifest)
 
@@ -164,13 +163,12 @@ class RetrievalBackend(ABC):
                     elif prev_cfg.enabled and not cfg.enabled:
                         self._delete_file_type_from_index(ext)
 
-        self.loaded = True
-
         self.manifest = Manifest(
             max_chunk_size=max_chunk_size,
             files={}
         )
         self.to_commit = 0
+        self.search_ready = False
 
     def register_file(self, file_data: FileData, file_hash: str) -> None:
         _, file_path, _ = file_data
@@ -246,7 +244,9 @@ class RetrievalBackend(ABC):
         remaining_files = self.previous_manifest.files.keys() \
             - self.manifest.files.keys()
         for file_path in remaining_files:
-            self._delete_file_from_index(file_path)
+            ext = FileType(Path(file_path).suffix)
+            if ext in self.cached_ext and self.file_in_manifest(file_path):
+                self._delete_file_from_index(file_path)
 
     @abstractmethod
     def _save_index(self) -> None:
@@ -255,13 +255,12 @@ class RetrievalBackend(ABC):
     def end_index(self) -> None:
         self._clean_index()
         self._save_index()
+        self._close_writer()
         self._dump_config()
         self._dump_manifest()
-        self.previous_config = self.config
-        self.previous_manifest = self.manifest
 
     def begin_search(self) -> None:
-        if self.loaded:
+        if self.search_ready:
             return
 
         if not (self.index_path / Path(MANIFEST_FILENAME)).is_file():
@@ -272,7 +271,7 @@ class RetrievalBackend(ABC):
         try:
             self._load_previous_config()
             self._load_previous_manifest()
-            self._load_index()
+            self._open_reader()
             self.search_cache = Cache(
                 directory=self.index_path / Path("search_cache"),
                 size_limit=MAX_CACHE_SIZE * 1024 * 1024,
@@ -283,7 +282,7 @@ class RetrievalBackend(ABC):
                 f"Index directory is invalid. {self.index_path}:\n"
                 f"{e}"
             )
-        self.loaded = True
+        self.search_ready = True
 
     def search(self, query: str, k: int) -> dict[MinimalSource, float]:
         value = self.search_cache.get((query, k, self.search_fingerprint))
@@ -315,3 +314,8 @@ class RetrievalBackend(ABC):
         k: int
     ) -> list[tuple[MinimalSource, float]]:
         pass
+
+    def end_search(self) -> None:
+        self._close_reader()
+        self.search_cache.close()
+        self.search_ready = False
