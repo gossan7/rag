@@ -2,18 +2,26 @@ import yaml
 
 from pathlib import Path
 
+from ..errors import ConfigError
 from .config import Config
 
 
 def dump_config(
     config: Config,
     file_name: str,
-    config_dir: Path
+    directory: Path
 ) -> None:
     raw_config = config.model_dump(mode="json")
-    config_dir.mkdir(parents=True, exist_ok=True)
-    path = Path(str(config_dir) + '/' + file_name)
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / Path(file_name)
     text_config = yaml.safe_dump(raw_config, sort_keys=False)
 
-    with open(path, mode="w", encoding="utf-8") as f:
-        f.write(text_config)
+    try:
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(text_config, encoding="utf-8")
+        tmp.replace(path)
+    except Exception as e:
+        raise ConfigError(
+            f"Could not write the config at {path}:\n"
+            f"{e}"
+        )

@@ -43,7 +43,3 @@ def load_config(
         ) from e
 
     return config
-
-
-if __name__ == "__main__":
-    load_config()
