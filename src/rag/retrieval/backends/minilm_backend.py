@@ -1,11 +1,14 @@
 from dotenv import load_dotenv
+from chromadb.config import Settings
+import chromadb
 
-from typing import Literal, Callable, cast, TYPE_CHECKING
+from typing import Literal, TYPE_CHECKING, cast, ClassVar
+from collections.abc import Callable
 from functools import cached_property
 import warnings
 import os
 
-from ...enums import Backend
+from ...enums import Backend, FileType
 from ...data_models import MinimalSource
 from ...config import Config
 from ...logger import Logger
@@ -15,6 +18,7 @@ if TYPE_CHECKING:
     from sentence_transformers import SentenceTransformer
     from chromadb.api import ClientAPI
     from chromadb.api.types import Embeddings, Metadata
+    from chromadb.api.models.Collection import Collection
 
 
 os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
@@ -22,7 +26,7 @@ os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 COLLECTION_NAME = "minilm"
 CPU_BACKEND: Literal['openvino'] = "openvino"
-FLUSH_BATCH_SIZE = 4
+ENCODING_BATCH_SIZE = 128
 
 warnings.filterwarnings(
     "ignore",
@@ -32,16 +36,16 @@ warnings.filterwarnings(
 
 
 class MiniLMBackend(RetrievalBackend):
-    backend_type = Backend.MINILM
-    batch_size = 1024
+    backend_type: ClassVar[Backend] = Backend.MINILM
 
     def __init__(self, config: Config, logger: Logger) -> None:
+        super().__init__(config, logger)
+
+        self.client: ClientAPI | None = None
+        self.collection: Collection | None = None
         self.ids: list[str] = []
         self.documents: list[str] = []
-        self.embeddings: Embeddings = []
         self.metadatas: list[Metadata] = []
-        self.to_flush = 0
-        super().__init__(config, logger)
 
     @cached_property
     def model(self) -> "SentenceTransformer":
@@ -62,13 +66,16 @@ class MiniLMBackend(RetrievalBackend):
         load_dotenv()
 
         if torch.cuda.is_available():
+            self.logger.info(
+                "CUDA available."
+            )
             model = SentenceTransformer(
                 model_name_or_path=MODEL_NAME,
                 device="cuda",
                 model_kwargs={"torch_dtype": torch.float16},
             )
         else:
-            self.logger.warning(
+            self.logger.info(
                 "CUDA not available, will default to cpu + OpenVINO."
                 " (quantized)"
             )
@@ -77,42 +84,22 @@ class MiniLMBackend(RetrievalBackend):
                 backend=CPU_BACKEND,
                 device="cpu",
                 model_kwargs={
-                    "file_name":
-                        "openvino/openvino_model_qint8_quantized.xml",
-                    "ov_config": {
-                        "INFERENCE_PRECISION_HINT": "f16",
-                    }
+                    "file_name": "openvino/openvino_model_qint8_quantized.xml"
                 }
             )
+
         self.logger.info("MiniLM loaded.")
         return model
 
-    @cached_property
-    def client(self) -> "ClientAPI":
-        from chromadb.config import Settings
-        import chromadb
-        return chromadb.PersistentClient(
-            self.index_path,
+    def _ensure_shared_resources(self) -> None:
+        pass
+
+    def _create_index(self) -> None:
+        self.client = chromadb.PersistentClient(
+            self.data_path,
             settings=Settings(anonymized_telemetry=False)
         )
 
-    def _flush(self) -> None:
-        batch_size = self.client.get_max_batch_size()
-
-        for start in range(0, len(self.ids), batch_size):
-            end = min(start + batch_size, len(self.ids))
-
-            self.collection.add(
-                ids=self.ids[start:end],
-                embeddings=self.embeddings[start:end],
-                metadatas=self.metadatas[start:end],
-            )
-
-        self.ids.clear()
-        self.embeddings.clear()
-        self.metadatas.clear()
-
-    def _create_index(self) -> None:
         self.collection = self.client.get_or_create_collection(
             name=COLLECTION_NAME,
             configuration={
@@ -123,10 +110,27 @@ class MiniLMBackend(RetrievalBackend):
         )
 
     def _load_index(self) -> None:
+        self.client = chromadb.PersistentClient(
+            self.data_path,
+            settings=Settings(anonymized_telemetry=False)
+        )
         self.collection = self.client.get_collection(COLLECTION_NAME)
 
-    def _add_document_to_index(
+    def _open_writer(self) -> None:
+        pass
+
+    def _close_writer(self) -> None:
+        pass
+
+    def _open_reader(self) -> None:
+        pass
+
+    def _close_reader(self) -> None:
+        pass
+
+    def _add_chunk_to_index(
         self,
+        file_type: FileType,
         chunk: MinimalSource,
         chunk_content: str
     ) -> None:
@@ -137,15 +141,22 @@ class MiniLMBackend(RetrievalBackend):
         self.ids.append(f"{path}:{start}:{end}")
         self.documents.append(chunk_content)
         self.metadatas.append({
+            "file_type": file_type.value,
             "file_path": path,
             "first_character_index": start,
             "last_character_index": end
         })
 
-    def _delete_file_from_index(self, file_path: str) -> None:
+    def _remove_file_from_index(self, file_path: str) -> None:
+        assert self.collection is not None
         self.collection.delete(where={"file_path": file_path})
 
-    def _delete_all_documents_from_index(self) -> None:
+    def _remove_file_type_from_index(self, file_type: FileType) -> None:
+        assert self.collection is not None
+        self.collection.delete(where={"file_type": file_type.value})
+
+    def _remove_all_documents_from_index(self) -> None:
+        assert self.client is not None
         self.client.delete_collection(name=COLLECTION_NAME)
         self.collection = self.client.create_collection(
             name=COLLECTION_NAME,
@@ -157,35 +168,38 @@ class MiniLMBackend(RetrievalBackend):
         )
 
     def _commit_index(self) -> None:
-        self.embeddings.extend(
-            self.model.encode(
-                self.documents,
-                batch_size=self.batch_size,
-                normalize_embeddings=True,
-                show_progress_bar=False
-            ).tolist()
-        )
+        assert self.client is not None
+        assert self.collection is not None
+
+        if not self.documents:
+            return
+
+        embeddings: Embeddings = self.model.encode(
+            self.documents,
+            batch_size=ENCODING_BATCH_SIZE,
+            normalize_embeddings=True,
+            show_progress_bar=False,
+        ).tolist()
+
+        batch_size = self.client.get_max_batch_size()
+        for start in range(0, len(self.ids), batch_size):
+            end = min(start + batch_size, len(self.ids))
+            self.collection.add(
+                ids=self.ids[start:end],
+                embeddings=embeddings[start:end],
+                metadatas=self.metadatas[start:end],
+            )
+
+        self.ids.clear()
         self.documents.clear()
-
-        self.to_flush += 1
-        if self.to_flush >= FLUSH_BATCH_SIZE:
-            self._flush()
-            self.to_flush = 0
-
-    def _save_index(self) -> None:
-        if self.documents:
-            self._commit_index()
-            self.to_commit = 0
-
-        if self.to_flush:
-            self._flush()
-            self.to_flush = 0
+        self.metadatas.clear()
 
     def get_index_hits(
         self,
         query: str,
         k: int
     ) -> list[tuple[MinimalSource, float]]:
+        assert self.collection is not None
         query_embedding = self.model.encode(
             [query],
             normalize_embeddings=True,

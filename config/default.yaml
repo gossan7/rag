@@ -3,7 +3,7 @@
 # Specifies path for: files to process, directory to save index, datasets, and output.
 # Do not change unless you know what you're doing
 paths:
-  raw: "data/raw/"
+  raw: "data/raw"
   processed: "data/processed"
   datasets: "data/datasets"
   output: "data/output"
@@ -16,7 +16,7 @@ indexing:
   file_types:
     .py:
       chunking_method: "ast"
-      enabled: false
+      enabled: true
     .md:
       chunking_method: "langchain"
       enabled: true
@@ -26,19 +26,19 @@ indexing:
 
 
 # Specifies which backend will be used for both indexing and searching.
-# Multiple backends can be enabled. The score used for search would then be the weighted sum of each normalized scores.
+# Multiple backends can be enabled. The score used for search would then a weighted rank fusion.
 retrieval:
   backends:
     tfidf:
       enabled: true
-      weight: 1.0
+      weight: 0.5
       path: "tfidf"
     bm25:
       enabled: true
-      weight: 1.0
+      weight: 0.5
       path: "bm25"
     minilm:
-      enabled: false
+      enabled: true
       weight: 1.0
       path: "minilm"
 
@@ -61,3 +61,4 @@ search:
 answer:
   model_name: Qwen/Qwen3-0.6B
   max_context_length: 10000
+  preprompt: ""

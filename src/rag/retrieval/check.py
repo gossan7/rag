@@ -19,9 +19,8 @@ def check(
         )
 
     for bkd in backends:
-        bkd.begin_search()
         bkd_name = bkd.backend_type.value
-        prev = bkd.previous_config
+        prev = bkd.prev_config
         if prev is None:
             raise SearchError(f"{bkd_name} index is invalid (fatal).")
 
@@ -71,18 +70,18 @@ def check(
         all_files.add(file_path)
         file_hash = sha256(file_content.encode("utf-8")).hexdigest()
         for bkd in backends:
-            if bkd.file_in_manifest(file_path) and \
-                    not bkd.file_matches_manifest(file_path, file_hash):
+            if bkd._file_in_manifest(file_path) and \
+                    not bkd._file_matches_manifest(file_path, file_hash):
                 incorrect_files[bkd.backend_type] += 1
 
     for bkd in backends:
         bkd_name = bkd.backend_type.value
-        if bkd.previous_manifest is None:
+        if bkd.prev_manifest is None:
             raise SearchError(f"{bkd_name} index is invalid (fatal).")
 
-        missing = len(all_files - bkd.previous_manifest.files.keys())
+        missing = len(all_files - bkd.prev_manifest.files.keys())
         incorrect = incorrect_files[bkd.backend_type]
-        extra = len(bkd.previous_manifest.files.keys() - all_files)
+        extra = len(bkd.prev_manifest.files.keys() - all_files)
 
         if missing or incorrect or extra:
             logger.warning(

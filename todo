@@ -1,8 +1,32 @@
-backends refactor 
+README: explain why there is no INDEX_VERSION: evaluator rebuilds indexes, and during development any persistence-affecting implementation change is followed by make dclean.
+README: document .indexing as an interrupted/dirty-index marker and explain the manual recovery procedure.
+README: mention that automatic deletion of a dirty index was deliberately avoided because configured paths may be user-controlled and destructive cleanup would be unsafe.
+Improvement: make the dirty-index error explicitly show the exact backend directory to delete and tell the user to rerun index.
+Improvement: if possible, only ask the user to delete the affected backend index rather than all of data/processed/.
+README: explain check() semantics: it detects divergence between the current corpus and the persisted index, but does not invalidate the index or prevent searching it.
+Improvement: distinguish check() warnings for modified files, deleted files, and new/unindexed files; mention that search continues against the existing index.
+README: explain the distinction between the current corpus, the persisted index snapshot, and previously generated search_results.json.
+README: call the hybrid combination weighted rank fusion / rank-based fusion, rather than suggesting that raw TF-IDF/BM25/vector scores are directly comparable.
+README: explain why rank fusion was chosen: the backends produce scores in incompatible scales.
+README: include the OpenVINO motivation and measured performance: ~20 min Torch CPU → ~1m51 OpenVINO CPU, ~27 s GPU, while lexical-only indexing is ~2–3 s.
+README: include final docs/code Recall@k numbers and, if useful, a small ablation comparing TF-IDF, BM25, MiniLM, and hybrid retrieval.
+README: explain the Python AST UTF-8 byte-offset → Python character-index conversion; it's a good non-obvious technical detail to highlight.
+README: explain the SyntaxError fallback from AST chunking to textual splitting.
+README: explain why Python and Markdown/text use different chunking strategies.
+Tests: specifically test Unicode AST offsets, exact character spans, and the 2000-character maximum.
+Tests: test incremental indexing for added, modified, and deleted files.
+Tests: test interrupted .indexing state and its recovery/error message.
+Tests: test hybrid fusion ordering and duplicate MinimalSource merging.
+Tests: test stale/missing source files, especially around previously generated search results and answer generation.
+Cleanup: remove/resolve the duplicate TODO/todo, unused auto_translate, unused DEFAULT_MIN_CHUNK_SIZE, and dead if False CUDA branch if they still exist.
+Cleanup: fix the previously spotted long line in src/rag/rag.py if still present.
+Makefile: final lint should use the subject's whole-project flake8 . / mypy ., rather than only src/.
+README: mention that OpenVINO isn't incidental complexity—it is what makes semantic indexing comfortably satisfy the CPU indexing limit.
+README: mention that stale-index warnings are intentionally non-fatal because retrieval queries the index snapshot, not the live corpus.
+README / defense: be ready to justify the safety trade-off: explicit failure + manual cleanup was preferred over potentially destructive automatic recovery.
+General: don't optimize check() just for theoretical complexity if the real vLLM benchmark shows its runtime is negligible.
+General: don't add index/schema versioning merely for completeness unless it starts solving a real problem; the current make dclean development contract is sufficient for this project's lifecycle.
+General: once everything is finished, the most useful final analysis is missed-query inspection: determine whether remaining recall failures come from chunking, backend retrieval, fusion weights, or k.
 
 
-move logic to base class (flush etc)
-
-init dont create an index
-
-search first checks for index validity for all backends
+check the pyproject.toml (dependencies not needed anymore, subject compliance)

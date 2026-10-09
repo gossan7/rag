@@ -4,13 +4,13 @@ from typing import Protocol, cast
 from bisect import bisect_right
 
 
-from ...enums import FileType
 from ...aliases import FileData
 from ...data_models import (
     MinimalSource,
     merge_sources,
     get_merged_source_size
 )
+from .langchain import langchain_chunk
 
 
 class LocatedNode(Protocol):
@@ -173,11 +173,15 @@ def ast_chunk(
     file_data: FileData,
     max_chunk_size: int = 2000
 ) -> list[MinimalSource]:
-    ext, file_path, file_content = file_data
-    assert ext == FileType.PYTHON  # TEMP
+    _, file_path, file_content = file_data
+
+    try:
+        node = ast.parse(file_content)
+    except SyntaxError:
+        return langchain_chunk(file_data, max_chunk_size)
 
     return recursive_chunk(
-        node=ast.parse(file_content),
+        node=node,
         offsets=get_line_offsets(file_content),
         max_chunk_size=max_chunk_size,
         file_path=file_path,
