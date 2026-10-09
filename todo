@@ -27,3 +27,6 @@ README / defense: be ready to justify the safety trade-off: explicit failure + m
 General: don't optimize check() just for theoretical complexity if the real vLLM benchmark shows its runtime is negligible.
 General: don't add index/schema versioning merely for completeness unless it starts solving a real problem; the current make dclean development contract is sufficient for this project's lifecycle.
 General: once everything is finished, the most useful final analysis is missed-query inspection: determine whether remaining recall failures come from chunking, backend retrieval, fusion weights, or k.
+
+
+check the pyproject.toml (dependencies not needed anymore, subject compliance)
