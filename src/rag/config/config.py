@@ -91,6 +91,7 @@ class SearchConfig(BaseConfig):
 class AnswerConfig(BaseConfig):
     model_name: str = Field(min_length=3, max_length=50)
     max_context_length: int = Field(ge=2000, le=20000)
+    preprompt: str
 
 
 class Config(BaseConfig):

@@ -19,14 +19,14 @@ indexing:
       enabled: true
     .md:
       chunking_method: "langchain"
-      enabled: false
+      enabled: true
     .txt:
       chunking_method: "langchain"
-      enabled: false
+      enabled: true
 
 
 # Specifies which backend will be used for both indexing and searching.
-# Multiple backends can be enabled. The score used for search would then be the weighted sum of each normalized scores.
+# Multiple backends can be enabled. The score used for search would then a weighted rank fusion.
 retrieval:
   backends:
     tfidf:
@@ -61,3 +61,4 @@ search:
 answer:
   model_name: Qwen/Qwen3-0.6B
   max_context_length: 10000
+  preprompt: ""
