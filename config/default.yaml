@@ -3,7 +3,7 @@
 # Specifies path for: files to process, directory to save index, datasets, and output.
 # Do not change unless you know what you're doing
 paths:
-  raw: "data/raw"
+  raw: 'data/raw'
   processed: "data/processed"
   datasets: "data/datasets"
   output: "data/output"
@@ -12,7 +12,7 @@ paths:
 # Specifies which file types will be processed, which directories to exclude, and which chunking method is used.
 # Available chunking methods are: ast (python only), langchain, window
 indexing:
-  excludes: [__pycache__, .git, .venv]
+  excludes: ["__pycache__", ".git", ".venv"]
   file_types:
     .py:
       chunking_method: "ast"
@@ -50,15 +50,12 @@ evaluation:
   min_iou: 0.05
 
 
-# Enables auto-translate in english for queries. Can make results worse if precise words are needed.
-# If enabled and the query is already in english, nothing will be made.
-search:
-  auto_translate: false
-
-
 # Specifies which model to use for generation. Also specifies the maximum context length.
 # The context length cannot be more than 20 000.
 answer:
-  model_name: Qwen/Qwen3-0.6B
-  max_context_length: 10000
+  model_name: "Qwen/Qwen3-0.6B"
+  path: "generation"
+  thinking_mode: True
+  temperature: 0.7
+  max_output_tokens: 1024
   preprompt: ""

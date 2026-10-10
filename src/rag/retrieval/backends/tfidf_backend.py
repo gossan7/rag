@@ -7,7 +7,7 @@ from hashlib import sha256
 from ...config import Config
 from ...logger import Logger
 from ...enums import Backend, FileType
-from ...data_models import MinimalSource
+from ...data_models import Source
 from .retrieval_backend import RetrievalBackend
 
 
@@ -55,7 +55,7 @@ class TFIDFBackend(RetrievalBackend):
     def _add_chunk_to_index(
         self,
         file_type: FileType,
-        chunk: MinimalSource,
+        chunk: Source,
         chunk_content: str
     ) -> None:
         assert self.database is not None
@@ -103,7 +103,7 @@ class TFIDFBackend(RetrievalBackend):
         self,
         query: str,
         k: int
-    ) -> list[tuple[MinimalSource, float]]:
+    ) -> list[tuple[Source, float]]:
         assert self.database is not None
         parser = xapian.QueryParser()
         parser.set_database(self.database)
@@ -120,10 +120,10 @@ class TFIDFBackend(RetrievalBackend):
 
         matches = enquire.get_mset(0, k)
 
-        out: list[tuple[MinimalSource, float]] = []
+        out: list[tuple[Source, float]] = []
 
         for match in matches:
-            source = MinimalSource.model_validate_json(
+            source = Source.model_validate_json(
                 match.document.get_data()
             )
 

@@ -4,8 +4,8 @@ import uuid
 
 class MinimalSource(BaseModel, frozen=True):
     file_path: str
-    first_character_index: int
-    last_character_index: int
+    first_character_index: int = Field(ge=0)
+    last_character_index: int = Field(ge=0)
 
     @model_validator(mode="after")
     def validate_source(self) -> "MinimalSource":
@@ -15,6 +15,10 @@ class MinimalSource(BaseModel, frozen=True):
                 " should be < last_character_index"
             )
         return self
+
+
+class Source(MinimalSource, frozen=True):
+    chunk_hash: str
 
 
 class UnansweredQuestion(BaseModel):
@@ -37,7 +41,17 @@ class MinimalSearchResults(BaseModel):
     retrieved_sources: list[MinimalSource]
 
 
+class SearchResults(BaseModel):
+    question_id: str
+    question: str
+    retrieved_sources: list[Source]
+
+
 class MinimalAnswer(MinimalSearchResults):
+    answer: str
+
+
+class Answer(SearchResults):
     answer: str
 
 
@@ -46,6 +60,16 @@ class StudentSearchResults(BaseModel):
     k: int
 
 
+class RagSearchResults(BaseModel):
+    search_results: list[SearchResults]
+    k: int
+
+
 class StudentSearchResultsAndAnswer(BaseModel):
     search_results: list[MinimalAnswer]
+    k: int
+
+
+class RagSearchResultsAndAnswer(BaseModel):
+    search_results: list[Answer]
     k: int

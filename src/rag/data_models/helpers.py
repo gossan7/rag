@@ -1,4 +1,7 @@
-from .structures import MinimalSource
+from hashlib import sha256
+
+from .structures import MinimalSource, Source
+from ..errors import RagError
 
 
 def get_source_size(source: MinimalSource) -> int:
@@ -37,10 +40,10 @@ def get_merged_source_size(
 
 
 def merge_scored_sources(
-    sources1: dict[MinimalSource, float],
-    sources2: dict[MinimalSource, float]
-) -> dict[MinimalSource, float]:
-    new_sources: dict[MinimalSource, float] = {}
+    sources1: dict[Source, float],
+    sources2: dict[Source, float]
+) -> dict[Source, float]:
+    new_sources: dict[Source, float] = {}
     for source, score in sources1.items():
         new_sources.setdefault(source, 0)
         new_sources[source] += score
@@ -49,3 +52,44 @@ def merge_scored_sources(
         new_sources.setdefault(source, 0)
         new_sources[source] += score
     return new_sources
+
+
+def source_is_valid(source: Source, content: str | None = None) -> bool:
+    file_path = source.file_path
+    start = source.first_character_index
+    end = source.last_character_index
+    chunk_hash = source.chunk_hash
+
+    if content is None:
+        try:
+            with open(file_path, mode="r", encoding="utf-8") as f:
+                file_content = f.read()
+        except Exception:
+            return False
+        if len(file_content) < end:
+            return False
+
+        content = file_content[start:end]
+
+    content_hash = sha256(content.encode("utf-8")).hexdigest()
+    return chunk_hash == content_hash
+
+
+def load_source(source: Source) -> str:
+    file_path = source.file_path
+    start = source.first_character_index
+    end = source.last_character_index
+
+    try:
+        with open(file_path, mode="r", encoding="utf-8") as f:
+            file_content = f.read()
+    except Exception as e:
+        raise RagError(f"Can't open the {file_path}:\n{e}")
+    if len(file_content) < end:
+        raise RagError(f"Character range is invalid for {file_path}")
+
+    chunk_content = file_content[start:end]
+    if not source_is_valid(source, content=chunk_content):
+        raise RagError("Chunk does not match its hash.")
+
+    return chunk_content

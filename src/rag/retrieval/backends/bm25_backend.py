@@ -5,7 +5,7 @@ from typing import ClassVar
 from ...config import Config
 from ...logger import Logger
 from ...enums import Backend, FileType
-from ...data_models import MinimalSource
+from ...data_models import Source
 from .retrieval_backend import RetrievalBackend
 
 
@@ -43,6 +43,10 @@ class BM25Backend(RetrievalBackend):
         )
         builder.add_unsigned_field(
             name="last_character_index",
+            stored=True
+        )
+        builder.add_text_field(
+            name="chunk_hash",
             stored=True
         )
         builder.add_text_field(
@@ -92,7 +96,7 @@ class BM25Backend(RetrievalBackend):
     def _add_chunk_to_index(
         self,
         file_type: FileType,
-        chunk: MinimalSource,
+        chunk: Source,
         chunk_content: str
     ) -> None:
         assert self.writer is not None
@@ -101,7 +105,8 @@ class BM25Backend(RetrievalBackend):
             file_path=chunk.file_path,
             body=chunk_content,
             first_character_index=chunk.first_character_index,
-            last_character_index=chunk.last_character_index
+            last_character_index=chunk.last_character_index,
+            chunk_hash=chunk.chunk_hash
         )
         self.writer.add_document(doc)
 
@@ -131,7 +136,7 @@ class BM25Backend(RetrievalBackend):
         self,
         query: str,
         k: int
-    ) -> list[tuple[MinimalSource, float]]:
+    ) -> list[tuple[Source, float]]:
         assert self.index is not None
         assert self.searcher is not None
         parsed_query, _ = self.index.parse_query_lenient(
@@ -144,13 +149,14 @@ class BM25Backend(RetrievalBackend):
             limit=k
         )
 
-        out: list[tuple[MinimalSource, float]] = []
+        out: list[tuple[Source, float]] = []
         for score, address in results.hits:
             doc = self.searcher.doc(address)
-            source = MinimalSource(
+            source = Source(
                 file_path=doc["file_path"][0],
                 first_character_index=doc["first_character_index"][0],
-                last_character_index=doc["last_character_index"][0]
+                last_character_index=doc["last_character_index"][0],
+                chunk_hash=doc["chunk_hash"][0]
             )
             out.append((source, float(score)))
         return out

@@ -3,11 +3,11 @@ from pydantic import ValidationError
 from pathlib import Path
 import json
 
-from ..data_models import StudentSearchResults
+from ..data_models import RagSearchResults
 from ..errors import SearchError
 
 
-def load_results(path: Path) -> StudentSearchResults:
+def load_results(path: Path) -> RagSearchResults:
     if not path.is_file():
         raise SearchError(f"Could not open {path}")
 
@@ -18,7 +18,7 @@ def load_results(path: Path) -> StudentSearchResults:
         raise SearchError(f"Could not open {path}:\n{e}")
 
     try:
-        search_results = StudentSearchResults.model_validate(
+        search_results = RagSearchResults.model_validate(
             raw_search_results
         )
     except ValidationError as e:
@@ -28,7 +28,7 @@ def load_results(path: Path) -> StudentSearchResults:
 
 
 def dump_results(
-    search_results: StudentSearchResults,
+    search_results: RagSearchResults,
     save_path: Path
 ) -> None:
     try:

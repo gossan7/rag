@@ -1,16 +1,16 @@
 from pathlib import Path
 
-from ..data_models import AnsweredQuestion, MinimalSource
+from ..data_models import AnsweredQuestion, MinimalSource, Source
 from ..dataset import load_results, load_dataset
 from ..errors import EvaluationError
 
 
 def load_and_validate(
-    student_search_results_path: str,
+    rag_search_results_path: str,
     dataset_path: str
 ) -> tuple[dict[str, list[MinimalSource]],
-           dict[str, list[MinimalSource]], set[str]]:
-    results = load_results(Path(student_search_results_path))
+           dict[str, list[Source]], set[str]]:
+    results = load_results(Path(rag_search_results_path))
     dataset = load_dataset(Path(dataset_path))
 
     if len(results.search_results) != len(dataset.rag_questions):
@@ -24,7 +24,7 @@ def load_and_validate(
             )
         truth_sources[question.question_id] = question.sources
 
-    result_sources: dict[str, list[MinimalSource]] = {}
+    result_sources: dict[str, list[Source]] = {}
     for result in results.search_results:
         result_sources[result.question_id] = result.retrieved_sources
 

@@ -9,7 +9,7 @@ import warnings
 import os
 
 from ...enums import Backend, FileType
-from ...data_models import MinimalSource
+from ...data_models import Source
 from ...config import Config
 from ...logger import Logger
 from .retrieval_backend import RetrievalBackend
@@ -131,12 +131,13 @@ class MiniLMBackend(RetrievalBackend):
     def _add_chunk_to_index(
         self,
         file_type: FileType,
-        chunk: MinimalSource,
+        chunk: Source,
         chunk_content: str
     ) -> None:
         path = chunk.file_path
         start = chunk.first_character_index
         end = chunk.last_character_index
+        chunk_hash = chunk.chunk_hash
 
         self.ids.append(f"{path}:{start}:{end}")
         self.documents.append(chunk_content)
@@ -144,7 +145,8 @@ class MiniLMBackend(RetrievalBackend):
             "file_type": file_type.value,
             "file_path": path,
             "first_character_index": start,
-            "last_character_index": end
+            "last_character_index": end,
+            "chunk_hash": chunk_hash
         })
 
     def _remove_file_from_index(self, file_path: str) -> None:
@@ -198,7 +200,7 @@ class MiniLMBackend(RetrievalBackend):
         self,
         query: str,
         k: int
-    ) -> list[tuple[MinimalSource, float]]:
+    ) -> list[tuple[Source, float]]:
         assert self.collection is not None
         query_embedding = self.model.encode(
             [query],
@@ -218,17 +220,19 @@ class MiniLMBackend(RetrievalBackend):
         )
         distances = cast(list[list[float]], results["distances"])
 
-        out: list[tuple[MinimalSource, float]] = []
+        out: list[tuple[Source, float]] = []
         for metadata, distance in zip(metadatas[0], distances[0]):
             file_path = cast(str, metadata["file_path"])
             start = cast(int, metadata["first_character_index"])
             end = cast(int, metadata["last_character_index"])
+            chunk_hash = cast(str, metadata["chunk_hash"])
 
             out.append((
-                MinimalSource(
+                Source(
                     file_path=file_path,
                     first_character_index=start,
-                    last_character_index=end
+                    last_character_index=end,
+                    chunk_hash=chunk_hash
                 ),
                 -distance
             ))

@@ -7,7 +7,7 @@ from contextlib import contextmanager, ExitStack
 
 from .config import Config, load_config
 from .errors import IndexingError
-from .data_models import UnansweredQuestion, StudentSearchResults
+from .data_models import UnansweredQuestion, RagSearchResults
 from .enums import Backend
 from .retrieval.load import count_files, file_generator
 from .retrieval.backends import (
@@ -22,6 +22,7 @@ from .retrieval.search import search
 from .retrieval.check import check
 from .dataset import load_dataset, dump_results
 from .evaluation import evaluate
+from .generation import Answerer
 
 
 RETRIEVAL_BACKENDS: dict[Backend, Type[RetrievalBackend]] = {
@@ -35,6 +36,7 @@ class RAG:
     def __init__(self, config_file: str):
         self.config: Config = load_config(config_file)
         self.logger = Logger()
+        self.answerer = Answerer(self.config, self.logger)
 
     @cached_property
     def backends(self) -> list[RetrievalBackend]:
@@ -54,7 +56,8 @@ class RAG:
             )
 
         file_types = set((
-            ftype for ftype, ftype_config in self.config.indexing.file_types.items()
+            ftype for ftype, ftype_config
+            in self.config.indexing.file_types.items()
             if ftype_config.enabled is True
         ))
 
@@ -108,7 +111,7 @@ class RAG:
         output_path = Path(save_directory) / input_path.name
         dataset = load_dataset(input_path)
 
-        search_results = StudentSearchResults(
+        search_results = RagSearchResults(
             search_results=[],
             k=k
         )
@@ -137,8 +140,16 @@ class RAG:
             self.logger
         )
 
-    def answer(self) -> None:
-        pass
+    def answer(self, query: str, k: int = 5) -> None:
+        question = UnansweredQuestion(
+            question=query
+        )
+
+        with self.search_session():
+            results = search(question, k, self.backends)
+
+        answer = self.answerer.answer(results)
+        print(answer.answer)
 
     def answer_dataset(self) -> None:
         pass

@@ -11,7 +11,7 @@ import json
 
 from ...config import Config, load_config, dump_config
 from ...enums import Backend, FileType
-from ...data_models import MinimalSource
+from ...data_models import Source
 from ...errors import RagError, IndexingError, SearchError
 from ...logger import Logger
 from .manifest import Manifest, load_manifest, dump_manifest
@@ -160,8 +160,8 @@ class RetrievalBackend(ABC):
     def _add_chunk_to_index(
         self,
         file_type: FileType,
-        chunk: MinimalSource,
-        chunk_content: str
+        chunk: Source,
+        chunk_content: str,
     ) -> None:
         pass
 
@@ -186,7 +186,7 @@ class RetrievalBackend(ABC):
         self,
         query: str,
         k: int
-    ) -> list[tuple[MinimalSource, float]]:
+    ) -> list[tuple[Source, float]]:
         pass
 
     @requires_mode(None)
@@ -268,13 +268,13 @@ class RetrievalBackend(ABC):
     def add_chunk(
         self,
         file_type: FileType,
-        chunk: MinimalSource,
-        chunk_content: str
+        chunk: Source,
+        chunk_content: str,
     ) -> None:
         self._add_chunk_to_index(
             file_type=file_type,
             chunk=chunk,
-            chunk_content=chunk_content
+            chunk_content=chunk_content,
         )
 
         self.to_commit += 1
@@ -354,7 +354,7 @@ class RetrievalBackend(ABC):
         self.mode = BackendMode.SEARCHING
 
     @requires_mode(BackendMode.SEARCHING)
-    def search(self, query: str, k: int) -> dict[MinimalSource, float]:
+    def search(self, query: str, k: int) -> dict[Source, float]:
         assert self.search_cache is not None
         value = self.search_cache.get((query, k, self.search_fingerprint))
         if value is None:
@@ -363,11 +363,11 @@ class RetrievalBackend(ABC):
 
         else:
             out = [
-                (MinimalSource.model_validate(source), score)
+                (Source.model_validate(source), score)
                 for source, score in value
             ]
 
-        search_results: dict[MinimalSource, float] = {}
+        search_results: dict[Source, float] = {}
         out.sort(key=lambda x: x[1], reverse=True)
         weight = self.config.retrieval.backends[self.backend_type].weight
         rank = 0

@@ -4,6 +4,7 @@ from collections.abc import Iterator
 
 from ..config import Config
 from ..aliases import FileData
+from ..data_models import Source
 from .backends.retrieval_backend import RetrievalBackend
 from .chunk import chunk_file
 
@@ -36,6 +37,14 @@ def index(
             chunk_content = file_content[
                 chunk.first_character_index:chunk.last_character_index
             ]
+            chunk_hash = sha256(chunk_content.encode("utf-8")).hexdigest()
+
+            chunk_with_hash = Source(
+                file_path=chunk.file_path,
+                first_character_index=chunk.first_character_index,
+                last_character_index=chunk.last_character_index,
+                chunk_hash=chunk_hash
+            )
 
             for bkd in dirty:
-                bkd.add_chunk(file_type, chunk, chunk_content)
+                bkd.add_chunk(file_type, chunk_with_hash, chunk_content)
