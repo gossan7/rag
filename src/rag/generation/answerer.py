@@ -126,15 +126,24 @@ class Answerer:
 
         answer = None
         answer_key = self.answer_cache.get(("request", request_key))
+
         if answer_key is not None:
             if set(c_answer_key["sources"]).issubset(
                 set(answer_key["sources"])
             ):
                 answer = self.answer_cache.get(("answer", answer_key))
+
             if answer is None:
                 answer = self.answer_cache.get(("answer", c_answer_key))
+                if answer is not None:
+                    self.answer_cache.set(
+                        ("request", request_key), c_answer_key
+                    )
+
         else:
             answer = self.answer_cache.get(("answer", c_answer_key))
+            if answer is not None:
+                self.answer_cache.set(("request", request_key), c_answer_key)
 
         if answer is None:
             message, used_sources = self._get_message(query)
