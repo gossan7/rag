@@ -71,6 +71,9 @@ def source_is_valid(source: Source, content: str | None = None) -> bool:
 
         content = file_content[start:end]
 
+    if chunk_hash is None:
+        return True
+
     content_hash = sha256(content.encode("utf-8")).hexdigest()
     return chunk_hash == content_hash
 

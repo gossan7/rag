@@ -18,7 +18,7 @@ class MinimalSource(BaseModel, frozen=True):
 
 
 class Source(MinimalSource, frozen=True):
-    chunk_hash: str
+    chunk_hash: str | None = None
 
 
 class UnansweredQuestion(BaseModel):

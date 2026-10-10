@@ -33,6 +33,9 @@ def dump_results(
 ) -> None:
     try:
         with open(save_path, mode="w", encoding="utf-8") as f:
+            save_path.parent.mkdir(parents=True, exist_ok=True)
             f.write(search_results.model_dump_json(indent=2))
     except Exception as e:
-        raise SearchError(f"Could not dump search results {save_path}:\n{e}")
+        raise SearchError(
+            f"Could not dump search results at {save_path}:\n{e}"
+        )

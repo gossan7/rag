@@ -1,8 +1,6 @@
 from diskcache import Cache
 
-from typing import Any
 from functools import cached_property
-from hashlib import sha256
 import json
 
 from ..config import Config
@@ -53,7 +51,7 @@ class Answerer:
         self.config.answer.path.mkdir(parents=True, exist_ok=True)
 
         self.answer_cache = Cache(
-            self.config.answer.path,
+            self.config.paths.cache \ self.config.answer.path,
             size_limit=MAX_CACHE_SIZE * 1024 * 1024,
             eviction_policy="least-recently-used",
         )

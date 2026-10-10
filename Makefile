@@ -91,7 +91,7 @@ clean:
 	find . -type d -name '*.egg-info' -prune -exec rm -rf {} +
 
 dclean:
-	rm -rf data/processed data/output
+	find data -maxdepth 1 -mindepth 1 ! -name raw -exec rm -rf {} +     
 
 fclean: dclean
 	rm -rf .venv

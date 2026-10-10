@@ -6,8 +6,10 @@ from pathlib import Path
 from contextlib import contextmanager, ExitStack
 
 from .config import Config, load_config
-from .errors import IndexingError
-from .data_models import UnansweredQuestion, RagSearchResults
+from .errors import RagError, IndexingError
+from .data_models import (
+    UnansweredQuestion, RagSearchResults, RagSearchResultsAndAnswer
+)
 from .enums import Backend
 from .retrieval.load import count_files, file_generator
 from .retrieval.backends import (
@@ -20,7 +22,7 @@ from .logger import Logger
 from .retrieval.index import index
 from .retrieval.search import search
 from .retrieval.check import check
-from .dataset import load_dataset, dump_results
+from .dataset import load_dataset, load_results, dump_results, dump_answers
 from .evaluation import evaluate
 from .generation import Answerer
 
@@ -125,7 +127,6 @@ class RAG:
                     search(question, k, self.backends)
                 )
 
-        output_path.parent.mkdir(parents=True, exist_ok=True)
         dump_results(search_results, output_path)
 
     def evaluate(
@@ -146,13 +147,40 @@ class RAG:
         )
 
         with self.search_session():
+            check(self.config, self.backends, self.logger)
             results = search(question, k, self.backends)
 
         answer = self.answerer.answer(results)
         print(answer.answer)
 
-    def answer_dataset(self) -> None:
-        pass
+    def answer_dataset(
+        self,
+        student_search_results_path: str,
+        save_directory: str
+    ) -> None:
+        input_path = Path(student_search_results_path)
+        output_path = Path(save_directory) / input_path.name
+
+        search_results = load_results(input_path)
+        answers = RagSearchResultsAndAnswer(
+            search_results=[],
+            k=search_results.k
+        )
+
+        for results in self.logger.loading_bar(
+            "answering", search_results.search_results
+        ):
+            try:
+                answers.search_results.append(
+                    self.answerer.answer(results)
+                )
+            except RagError as e:
+                self.logger.warning(
+                    "An error has occured while processing dataset. "
+                    f"question will be skipped:\n{e}"
+                )
+
+        dump_answers(answers, output_path)
 
     @contextmanager
     def index_session(
