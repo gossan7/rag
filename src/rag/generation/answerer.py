@@ -48,10 +48,11 @@ class Answerer:
         else:
             self.preprompt = None
 
-        self.config.answer.path.mkdir(parents=True, exist_ok=True)
+        cache_dir = self.config.paths.processed / self.config.answer.path
+        cache_dir.mkdir(parents=True, exist_ok=True)
 
         self.answer_cache = Cache(
-            self.config.paths.processed / self.config.answer.path,
+            directory=cache_dir,
             size_limit=MAX_CACHE_SIZE * 1024 * 1024,
             eviction_policy="least-recently-used",
         )

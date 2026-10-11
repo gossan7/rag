@@ -10,7 +10,7 @@ from rich.markdown import Markdown
 from .config import Config, load_config
 from .errors import RagError, IndexingError
 from .data_models import (
-    UnansweredQuestion, RagSearchResults, RagSearchResultsAndAnswer
+    UnansweredQuestion, RagSearchResults, RagSearchResultsAndAnswer, Answer
 )
 from .enums import Backend
 from .retrieval.load import count_files, file_generator
@@ -180,6 +180,15 @@ class RAG:
                 self.logger.warning(
                     "An error has occured while processing dataset. "
                     f"question will be skipped:\n{e}"
+                )
+                answers.search_results.append(
+                    Answer(
+                        question_id=results.question_id,
+                        question=results.question,
+                        retrieved_sources=results.retrieved_sources,
+                        answer="An error has occured while "
+                        "processig this question."
+                    )
                 )
 
         dump_answers(answers, output_path)

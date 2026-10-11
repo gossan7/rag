@@ -13,6 +13,16 @@ def load_and_validate(
     results = load_results(Path(rag_search_results_path))
     dataset = load_dataset(Path(dataset_path))
 
+    if len(dataset.rag_questions) == 0:
+        raise EvaluationError(
+            "Empty dataset."
+        )
+
+    if len(results.search_results) == 0:
+        raise EvaluationError(
+            "Empty search results."
+        )
+
     if len(results.search_results) != len(dataset.rag_questions):
         raise EvaluationError("Search results don't match dataset.")
 
