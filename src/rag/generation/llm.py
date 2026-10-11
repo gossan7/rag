@@ -3,6 +3,7 @@ from copy import deepcopy
 
 from ..config import Config
 from ..logger import Logger
+from ..errors import AnswerError
 
 
 class LLM:
@@ -49,6 +50,10 @@ class LLM:
         )[0]["generated_text"]
         assert isinstance(result, str)
 
-        answer = result.split("</think>")[-1]
+        split = result.split("</think>")
+        if len(split) != 1 and len(split) != 2:
+            raise AnswerError(
+                "Answer is incomplete."
+            )
 
-        return answer
+        return split[-1]

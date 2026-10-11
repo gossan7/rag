@@ -3,7 +3,7 @@
 # Specifies path for: files to process, directory to save index, datasets, and output.
 # Do not change unless you know what you're doing
 paths:
-  raw: 'data/raw'
+  raw: 'data/raw/flyin-master'
   processed: "data/processed"
   datasets: "data/datasets"
   output: "data/output"
