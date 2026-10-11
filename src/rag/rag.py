@@ -14,7 +14,11 @@ from .errors import (
     RagError, IndexingError, SearchError, AnswerError, ModelLoadError
 )
 from .data_models import (
-    UnansweredQuestion, RagSearchResults, RagSearchResultsAndAnswer, Answer
+    UnansweredQuestion,
+    RagSearchResults,
+    RagSearchResultsAndAnswer,
+    SearchResults,
+    Answer
 )
 from .enums import Backend
 from .retrieval import count_files, file_generator
@@ -141,7 +145,7 @@ class RAG:
             f"{self.logger.duration(perf_counter() - start)}."
         )
 
-    def search(self, query: str, k: int = 5) -> None:
+    def search(self, query: str, k: int = 5) -> SearchResults:
         question = UnansweredQuestion(
             question_id=sha256(query.strip().encode("utf-8")).hexdigest(),
             question=query
@@ -165,6 +169,7 @@ class RAG:
             )
         else:
             self.logger.warning("No result found for this query.")
+        return search_results
 
     def search_dataset(
         self,
@@ -203,20 +208,7 @@ class RAG:
         dump_results(search_results, output_path)
         self.logger.success(f"Search results saved to '{output_path}'.")
 
-    def evaluate(
-        self,
-        student_search_results_path: str,
-        dataset_path: str
-    ) -> None:
-        evaluate(
-            self.config,
-            student_search_results_path,
-            dataset_path,
-            self.logger
-        )
-        self.logger.success("Evaluation completed.")
-
-    def answer(self, query: str, k: int = 5) -> None:
+    def answer(self, query: str, k: int = 5) -> Answer:
         question = UnansweredQuestion(
             question=query
         )
@@ -231,6 +223,7 @@ class RAG:
             self.logger.success("Answer loaded from the answer cache.")
         else:
             self.logger.success("Answer generated.")
+        return answer
 
     def answer_dataset(
         self,
@@ -296,6 +289,19 @@ class RAG:
             self.logger.warning(summary)
         else:
             self.logger.success(summary)
+
+    def evaluate(
+        self,
+        student_search_results_path: str,
+        dataset_path: str
+    ) -> None:
+        evaluate(
+            self.config,
+            student_search_results_path,
+            dataset_path,
+            self.logger
+        )
+        self.logger.success("Evaluation completed.")
 
     def ensure_indexable(self) -> None:
         problems: list[str] = []

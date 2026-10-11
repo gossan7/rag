@@ -1,9 +1,14 @@
-.DEFAULT_GOAL := help
+.DEFAULT_GOAL 	:= help
 
-UV      := uv
-PYTHON  := $(UV) run python
-MODULE  := src
-ARGS    ?=
+UV      		:= uv
+PYTHON  		:= $(UV) run python
+XDG				:= xdg-open
+MODULE  		:= src
+HOST			:= 127.0.0.1
+PORT			:= 8000
+INTERFACE		:= docs
+
+ARGS    		?=
 
 .PHONY: help install run debug index search search_dataset answer answer_dataset evaluate \
         profile lint lint-strict clean dclean fclean re
@@ -43,29 +48,35 @@ help:
 install:
 	$(UV) sync
 
-run:
+run: install
 	$(PYTHON) -m $(MODULE) $(ARGS)
 
-debug:
+debug: install
 	$(PYTHON) -m pdb -m $(MODULE) $(ARGS)
 
-index:
+index: install
 	$(PYTHON) -m $(MODULE) index $(ARGS)
 
-search:
+search: install
 	$(PYTHON) -m $(MODULE) search $(ARGS)
 
-search_dataset:
+search_dataset: install
 	$(PYTHON) -m $(MODULE) search_dataset $(ARGS)
 
-answer:
+answer: install
 	$(PYTHON) -m $(MODULE) answer $(ARGS)
 
-answer_dataset:
+answer_dataset: install
 	$(PYTHON) -m $(MODULE) answer_dataset $(ARGS)
 
-evaluate:
+evaluate: install
 	$(PYTHON) -m $(MODULE) evaluate $(ARGS)
+
+serve: install
+	$(UV) run uvicorn src.rag.rag_http_api:app --host $(HOST) --port $(PORT)
+
+client:
+	$(XDG) http://$(HOST):$(PORT)/$(INTERFACE)
 
 profile:
 	$(PYTHON) -m cProfile -o profile.prof -m $(MODULE) index $(ARGS)
