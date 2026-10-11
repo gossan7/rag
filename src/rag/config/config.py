@@ -133,7 +133,7 @@ class AnswerConfig(BaseConfig):
     thinking_mode: bool
     temperature: float = Field(gt=0.0, le=1.0)
     max_input_tokens: int = Field(gt=0)
-    max_output_tokens: int = Field(ge=256, le=2048)
+    max_output_tokens: int = Field(ge=0)
     preprompt: str
 
 

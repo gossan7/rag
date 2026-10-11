@@ -53,7 +53,7 @@ evaluation:
 
 
 # Specifies which model to use for generation. Also specifies the maximum context length.
-# The context length cannot be more than 20 000.
+# The context length will not exceed the model's context length.
 answer:
   model_name: "Qwen/Qwen3-0.6B"
   path: "generation"
