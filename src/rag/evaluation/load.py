@@ -15,22 +15,34 @@ def load_and_validate(
 
     if len(dataset.rag_questions) == 0:
         raise EvaluationError(
-            "Empty dataset."
+            f"Cannot evaluate: dataset '{dataset_path}' contains no question."
         )
 
     if len(results.search_results) == 0:
         raise EvaluationError(
-            "Empty search results."
+            f"Cannot evaluate: search results '{rag_search_results_path}' "
+            "contain no question."
         )
 
+    mismatch = (
+        f"Cannot evaluate: search results '{rag_search_results_path}' do "
+        f"not match dataset '{dataset_path}'"
+    )
+    hint = "Make sure the search results were produced from this dataset."
+
     if len(results.search_results) != len(dataset.rag_questions):
-        raise EvaluationError("Search results don't match dataset.")
+        raise EvaluationError(
+            f"{mismatch}: {len(results.search_results)} search results for "
+            f"{len(dataset.rag_questions)} dataset questions. {hint}"
+        )
 
     truth_sources: dict[str, list[MinimalSource]] = {}
     for question in dataset.rag_questions:
         if not isinstance(question, AnsweredQuestion):
             raise EvaluationError(
-                "Dataset should contains AnsweredQuestion only."
+                f"Cannot evaluate: question '{question.question_id}' in "
+                f"dataset '{dataset_path}' has no expected 'sources' and "
+                "'answer'. Evaluation requires an answered dataset."
             )
         truth_sources[question.question_id] = question.sources
 
@@ -38,10 +50,19 @@ def load_and_validate(
     for result in results.search_results:
         result_sources[result.question_id] = result.retrieved_sources
 
-    if truth_sources.keys() - result_sources.keys():
-        raise EvaluationError("Search results don't match dataset.")
-    if result_sources.keys() - truth_sources.keys():
-        raise EvaluationError("Search results don't match dataset.")
+    unsearched = sorted(truth_sources.keys() - result_sources.keys())
+    if unsearched:
+        raise EvaluationError(
+            f"{mismatch}: {len(unsearched)} dataset question(s) have no "
+            f"search result (e.g. question_id '{unsearched[0]}'). {hint}"
+        )
+    unknown = sorted(result_sources.keys() - truth_sources.keys())
+    if unknown:
+        raise EvaluationError(
+            f"{mismatch}: {len(unknown)} search result(s) refer to "
+            f"questions missing from the dataset (e.g. question_id "
+            f"'{unknown[0]}'). {hint}"
+        )
 
     question_ids = set(truth_sources.keys())
 

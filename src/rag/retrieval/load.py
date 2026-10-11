@@ -12,11 +12,16 @@ def read_file(path: Path) -> str:
         with open(path, "r", encoding="utf-8") as f:
             return f.read()
 
-    except Exception as e:
+    except UnicodeDecodeError as e:
         raise IndexingError(
-            "An error has occured during file processing " +
-            f"(reading)\n{e}"
-        )
+            f"Cannot read corpus file '{path}': it is not valid UTF-8 text "
+            f"({e.reason} at byte {e.start}). Fix or remove the file, or add "
+            "its directory to 'indexing.excludes'."
+        ) from e
+    except OSError as e:
+        raise IndexingError(
+            f"Cannot read corpus file '{path}': {e}"
+        ) from e
 
 
 def file_paths(

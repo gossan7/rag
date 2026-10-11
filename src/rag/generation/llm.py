@@ -1,9 +1,14 @@
 
 from copy import deepcopy
+from typing import Any
 
 from ..config import Config
 from ..logger import Logger
-from ..errors import AnswerError
+from ..errors import AnswerError, ModelLoadError
+
+THINK_END_MARKERS = ("</think>",)
+CONTEXT_ATTRIBUTES = ("max_position_embeddings", "n_positions", "n_ctx")
+MAX_PLAUSIBLE_CONTEXT = 10_000_000
 
 
 class LLM:
@@ -16,16 +21,29 @@ class LLM:
 
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
+        model_name = config.answer.model_name
         if device == "cuda":
-            self.logger.info("CUDA available.")
+            self.logger.info(
+                f"Loading generation model '{model_name}' on CUDA..."
+            )
         else:
-            self.logger.info("CUDA unavailable, will fall back to cpu")
+            self.logger.info(
+                f"Loading generation model '{model_name}' on CPU "
+                "(CUDA unavailable)..."
+            )
 
-        self.generator = pipeline(
-            "text-generation",
-            model=config.answer.model_name,
-            device=device,
-        )
+        try:
+            self.generator = pipeline(
+                "text-generation",
+                model=model_name,
+                device=device,
+            )
+        except (OSError, ValueError, RuntimeError) as e:
+            raise ModelLoadError(
+                f"Cannot load generation model '{model_name}': {e}\n"
+                "Check 'answer.model_name' in the configuration, your "
+                "network connection and the Hugging Face cache."
+            ) from e
 
         self.generation_config: GenerationConfig = deepcopy(
             self.generator.model.generation_config
@@ -39,21 +57,140 @@ class LLM:
         self.generation_config.do_sample = True
         self.generation_config.max_length = None
 
-    def answer(self, messages: list[dict[str, str]]) -> str:
-        result = self.generator(
-            messages,
-            tokenizer_encode_kwargs={
-                "enable_thinking": self.config.answer.thinking_mode
-            },
-            generation_config=self.generation_config,
-            return_full_text=False,
-        )[0]["generated_text"]
-        assert isinstance(result, str)
+        self.tokenizer: Any = self.generator.tokenizer
+        self.encode_kwargs: dict[str, bool] = {
+            "enable_thinking": self.config.answer.thinking_mode
+        }
+        self.context_limit: int | None = self._get_context_limit()
+        self.think_end: str | None = self._get_think_end()
 
-        split = result.split("</think>")
-        if len(split) != 1 and len(split) != 2:
+    def _get_context_limit(self) -> int | None:
+        model_config = self.generator.model.config
+        limits = [
+            getattr(model_config, name, None) for name in CONTEXT_ATTRIBUTES
+        ]
+        limits.append(getattr(self.tokenizer, "model_max_length", None))
+        known = [
+            limit for limit in limits
+            if isinstance(limit, int) and not isinstance(limit, bool)
+            and 0 < limit <= MAX_PLAUSIBLE_CONTEXT
+        ]
+        return min(known) if known else None
+
+    def _get_think_end(self) -> str | None:
+        tokenizer = self.tokenizer
+        added_vocab = tokenizer.get_added_vocab()
+        for marker in THINK_END_MARKERS:
+            if marker not in added_vocab:
+                continue
+            token = tokenizer.convert_ids_to_tokens(
+                tokenizer.convert_tokens_to_ids(marker)
+            )
+            if isinstance(token, str) and token:
+                return token
+        return None
+
+    def _check_context(self, messages: list[dict[str, str]]) -> None:
+        model_name = self.config.answer.model_name
+        max_input = self.config.answer.max_input_tokens
+        max_output = self.config.answer.max_output_tokens
+
+        try:
+            encoded = self.tokenizer.apply_chat_template(
+                messages,
+                add_generation_prompt=True,
+                tokenize=True,
+                return_dict=True,
+                **self.encode_kwargs,
+            )
+        except ValueError as e:
             raise AnswerError(
-                "Answer is incomplete."
+                f"Cannot build the prompt for model '{model_name}': {e}"
+            ) from e
+        n_tokens = len(encoded["input_ids"])
+
+        if self.context_limit is None:
+            context = "model context limit: unknown"
+        else:
+            context = f"model context limit: {self.context_limit} tokens"
+        details = (
+            f"(input: {n_tokens} tokens, 'answer.max_input_tokens': "
+            f"{max_input}, 'answer.max_output_tokens': {max_output}, "
+            f"{context})"
+        )
+
+        if n_tokens > max_input:
+            raise AnswerError(
+                f"Cannot generate an answer with model '{model_name}': the "
+                f"prompt exceeds 'answer.max_input_tokens' {details}.\n"
+                "Reduce --k, or increase 'answer.max_input_tokens' in the "
+                "configuration."
+            )
+        if self.context_limit is None:
+            raise AnswerError(
+                f"Cannot generate an answer with model '{model_name}': its "
+                "context window cannot be determined from its configuration "
+                "or tokenizer, so the prompt cannot be checked against it "
+                f"{details}.\n"
+                "Use a model that declares its context size in "
+                "'answer.model_name'."
+            )
+        if n_tokens + max_output > self.context_limit:
+            raise AnswerError(
+                f"Cannot generate an answer with model '{model_name}': the "
+                "prompt and the reserved output need "
+                f"{n_tokens + max_output} tokens, more than the model "
+                f"context window {details}.\n"
+                "Reduce --k, or decrease 'answer.max_output_tokens' or "
+                "'answer.max_input_tokens' in the configuration."
             )
 
-        return split[-1]
+    def _get_final_answer(self, text: str) -> str:
+        model_name = self.config.answer.model_name
+        thinking = self.config.answer.thinking_mode
+        hint = (
+            "Generation may have stopped before the final answer: "
+            "increase 'answer.max_output_tokens' or set "
+            "'answer.thinking_mode' to false in the configuration."
+        )
+
+        if self.think_end is not None:
+            _, marker, final = text.rpartition(self.think_end)
+            if marker:
+                text = final
+            elif thinking:
+                raise AnswerError(
+                    f"Model '{model_name}' did not finish thinking: no "
+                    f"closing '{self.think_end}' marker in its output.\n"
+                    f"{hint}"
+                )
+
+        answer = text.strip()
+        if not answer:
+            if self.think_end is not None and thinking:
+                raise AnswerError(
+                    f"Model '{model_name}' returned an empty answer after "
+                    f"thinking.\n{hint}"
+                )
+            raise AnswerError(
+                f"Model '{model_name}' returned an empty answer."
+            )
+        return answer
+
+    def answer(self, messages: list[dict[str, str]]) -> str:
+        model_name = self.config.answer.model_name
+        self._check_context(messages)
+        try:
+            result = self.generator(
+                messages,
+                tokenizer_encode_kwargs=self.encode_kwargs,
+                generation_config=self.generation_config,
+                return_full_text=False,
+            )[0]["generated_text"]
+        except RuntimeError as e:
+            raise AnswerError(
+                f"Generation failed with model '{model_name}': {e}"
+            ) from e
+        assert isinstance(result, str)
+
+        return self._get_final_answer(result)

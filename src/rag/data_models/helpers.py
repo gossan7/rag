@@ -64,7 +64,7 @@ def source_is_valid(source: Source, content: str | None = None) -> bool:
         try:
             with open(file_path, mode="r", encoding="utf-8") as f:
                 file_content = f.read()
-        except Exception:
+        except (OSError, UnicodeDecodeError):
             return False
         if len(file_content) < end:
             return False
@@ -86,13 +86,26 @@ def load_source(source: Source) -> str:
     try:
         with open(file_path, mode="r", encoding="utf-8") as f:
             file_content = f.read()
-    except Exception as e:
-        raise RagError(f"Can't open the {file_path}:\n{e}")
+    except FileNotFoundError as e:
+        raise RagError(
+            f"Source file '{file_path}' no longer exists."
+        ) from e
+    except (OSError, UnicodeDecodeError) as e:
+        raise RagError(
+            f"Cannot read source file '{file_path}': {e}"
+        ) from e
     if len(file_content) < end:
-        raise RagError(f"Character range is invalid for {file_path}")
+        raise RagError(
+            f"Source file '{file_path}' is shorter than the indexed range "
+            f"[{start}:{end}]: it was modified after indexing."
+        )
 
     chunk_content = file_content[start:end]
     if not source_is_valid(source, content=chunk_content):
-        raise RagError("Chunk does not match its hash.")
+        raise RagError(
+            f"Source '{file_path}' [{start}:{end}] no longer matches its "
+            "indexed content (chunk hash mismatch): the file was modified "
+            "after indexing."
+        )
 
     return chunk_content

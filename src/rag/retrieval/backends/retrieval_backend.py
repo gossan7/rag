@@ -8,6 +8,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from hashlib import sha256
 import json
+import sqlite3
 
 from ...config import Config, load_config, dump_config
 from ...enums import Backend, FileType
@@ -71,6 +72,9 @@ def requires_mode(
 class RetrievalBackend(ABC):
     backend_type: ClassVar[Backend]
     batch_size: ClassVar[int] = 2048
+    storage_errors: ClassVar[tuple[type[Exception], ...]] = (
+        OSError, ValueError, RuntimeError, sqlite3.Error
+    )
 
     def __init__(self, config: Config, logger: Logger) -> None:
         self.config: Config = config
@@ -84,6 +88,39 @@ class RetrievalBackend(ABC):
         self.prev_config: Config | None = None
         self.prev_manifest: Manifest | None = None
         self.search_cache: Cache | None = None
+        self.index_notes: list[str] = []
+        self.indexed_files: int = 0
+        self.indexed_chunks: int = 0
+        self.removed_files: int = 0
+
+    def _describe(self) -> str:
+        return f"{self.backend_type.value} index at '{self.index_path}'"
+
+    def _recovery_hint(self) -> str:
+        return (
+            "The index is never repaired or deleted automatically: delete "
+            f"'{self.index_path}' manually, then run the index command again."
+        )
+
+    def _index_problem(self) -> str | None:
+        if self.marker.is_file():
+            return (
+                f"a previous indexing run did not complete "
+                f"('{DIRTY_MARK_FILENAME}' marker found), so the index may "
+                "be inconsistent"
+            )
+        if not (self.index_path / Path(MANIFEST_FILENAME)).is_file():
+            return f"'{MANIFEST_FILENAME}' is missing"
+        if not (self.index_path / Path(CONFIG_FILENAME)).is_file():
+            return f"'{CONFIG_FILENAME}' is missing"
+        if not self.data_path.is_dir():
+            return f"the '{DATA_PATH}' directory is missing"
+        return None
+
+    def _write_error(self, error: Exception) -> IndexingError:
+        return IndexingError(
+            f"Cannot write to the {self._describe()}: {error}"
+        )
 
     def _index_is_empty(self) -> bool:
         if not self.index_path.exists():
@@ -93,15 +130,7 @@ class RetrievalBackend(ABC):
     def _index_is_valid(self) -> bool:
         if self._index_is_empty():
             return False
-        if not (self.index_path / Path(MANIFEST_FILENAME)).is_file():
-            return False
-        if not (self.index_path / Path(CONFIG_FILENAME)).is_file():
-            return False
-        if (self.index_path / Path(DIRTY_MARK_FILENAME)).is_file():
-            return False
-        if not self.data_path.is_dir():
-            return False
-        return True
+        return self._index_problem() is None
 
     def _load_metadatas(self) -> None:
         if self._index_is_empty():
@@ -189,53 +218,95 @@ class RetrievalBackend(ABC):
     ) -> list[tuple[Source, float]]:
         pass
 
+    def ensure_indexable(self) -> None:
+        if self._index_is_empty():
+            return
+        problem = self._index_problem()
+        if problem is not None:
+            raise IndexingError(
+                f"Cannot update the {self._describe()}: {problem}.\n"
+                f"{self._recovery_hint()}"
+            )
+
     @requires_mode(None)
     def _begin_index(self, max_chunk_size: int) -> None:
         is_new = self._index_is_empty()
-        if not is_new and not self._index_is_valid():
-            raise IndexingError(
-                "Invalid index."
-            )
+        self.ensure_indexable()
 
-        self._load_metadatas()
+        try:
+            self._load_metadatas()
+        except RagError as e:
+            raise IndexingError(
+                f"Cannot update the {self._describe()}: its metadata is "
+                f"unreadable.\n{e}\n{self._recovery_hint()}"
+            ) from e
         self._ensure_shared_resources()
 
-        self.index_path.mkdir(parents=True, exist_ok=True)
-        self.data_path.mkdir(parents=True, exist_ok=True)
-        self.marker.touch()
-
-        if is_new:
-            self._create_index()
-        else:
-            self._load_index()
-        self._open_writer()
-
-        self.cached_ftypes = set()
+        self.index_notes = []
+        self.indexed_files = 0
+        self.indexed_chunks = 0
+        self.removed_files = 0
+        self.cached_ftypes: set[FileType] = set()
         self.to_commit: int = 0
         self.manifest: Manifest = Manifest(
             max_chunk_size=max_chunk_size,
             files={}
         )
 
-        if self.prev_config is not None and self.prev_manifest is not None:
-            if self.prev_manifest.max_chunk_size == max_chunk_size:
-                for ftype, cfg in self.config.indexing.file_types.items():
-                    prev_cfg = self.prev_config.indexing.file_types[ftype]
+        try:
+            self.index_path.mkdir(parents=True, exist_ok=True)
+            self.data_path.mkdir(parents=True, exist_ok=True)
+            self.marker.touch()
 
-                    if prev_cfg.enabled and cfg.enabled:
-                        if prev_cfg.chunking_method == cfg.chunking_method:
-                            self.cached_ftypes.add(ftype)
-
-                        else:
-                            self._remove_file_type_from_index(ftype)
-
-                    elif prev_cfg.enabled and not cfg.enabled:
-                        self._remove_file_type_from_index(ftype)
-
+            if is_new:
+                self._create_index()
+                self.index_notes.append("creating a new index")
             else:
-                self._remove_all_documents_from_index()
+                self._load_index()
+            self._open_writer()
+
+            if self.prev_config is not None and self.prev_manifest is not None:
+                self._prepare_incremental_index(max_chunk_size)
+        except self.storage_errors as e:
+            raise IndexingError(
+                f"Cannot open the {self._describe()} for writing: {e}"
+            ) from e
 
         self.mode = BackendMode.INDEXING
+
+    def _prepare_incremental_index(self, max_chunk_size: int) -> None:
+        assert self.prev_config is not None
+        assert self.prev_manifest is not None
+        prev_size = self.prev_manifest.max_chunk_size
+        if prev_size != max_chunk_size:
+            self._remove_all_documents_from_index()
+            self.index_notes.append(
+                f"max_chunk_size changed ({prev_size} -> {max_chunk_size}), "
+                "rebuilding the whole index"
+            )
+            return
+
+        for ftype, cfg in self.config.indexing.file_types.items():
+            prev_cfg = self.prev_config.indexing.file_types[ftype]
+
+            if prev_cfg.enabled and cfg.enabled:
+                if prev_cfg.chunking_method == cfg.chunking_method:
+                    self.cached_ftypes.add(ftype)
+
+                else:
+                    self._remove_file_type_from_index(ftype)
+                    self.index_notes.append(
+                        f"chunking method changed for {ftype.value} files "
+                        f"({prev_cfg.chunking_method.value} -> "
+                        f"{cfg.chunking_method.value}), re-indexing them"
+                    )
+
+            elif prev_cfg.enabled and not cfg.enabled:
+                self._remove_file_type_from_index(ftype)
+                self.index_notes.append(
+                    f"{ftype.value} files are now disabled, removing them "
+                    "from the index"
+                )
 
     @requires_mode(BackendMode.INDEXING)
     def register_file(self, file_path: str, file_hash: str) -> None:
@@ -258,11 +329,15 @@ class RetrievalBackend(ABC):
 
     @requires_mode(BackendMode.INDEXING)
     def prepare_file(self, file_type: FileType, file_path: str) -> None:
+        self.indexed_files += 1
         if file_type not in self.cached_ftypes:
             return
         if not self._file_in_manifest(file_path):
             return
-        self._remove_file_from_index(file_path)
+        try:
+            self._remove_file_from_index(file_path)
+        except self.storage_errors as e:
+            raise self._write_error(e) from e
 
     @requires_mode(BackendMode.INDEXING)
     def add_chunk(
@@ -271,16 +346,20 @@ class RetrievalBackend(ABC):
         chunk: Source,
         chunk_content: str,
     ) -> None:
-        self._add_chunk_to_index(
-            file_type=file_type,
-            chunk=chunk,
-            chunk_content=chunk_content,
-        )
+        try:
+            self._add_chunk_to_index(
+                file_type=file_type,
+                chunk=chunk,
+                chunk_content=chunk_content,
+            )
 
-        self.to_commit += 1
-        if self.to_commit >= self.batch_size:
-            self._commit_index()
-            self.to_commit = 0
+            self.indexed_chunks += 1
+            self.to_commit += 1
+            if self.to_commit >= self.batch_size:
+                self._commit_index()
+                self.to_commit = 0
+        except self.storage_errors as e:
+            raise self._write_error(e) from e
 
     def _clean_index(self) -> None:
         if self.prev_manifest is None:
@@ -288,6 +367,7 @@ class RetrievalBackend(ABC):
 
         remaining_files = self.prev_manifest.files.keys() - \
             self.manifest.files.keys()
+        self.removed_files = len(remaining_files)
 
         for file_path in remaining_files:
             ftype = FileType(Path(file_path).suffix)
@@ -307,27 +387,50 @@ class RetrievalBackend(ABC):
             self._close_writer()
             self._dump_metadatas()
             self.marker.unlink(missing_ok=True)
+        except self.storage_errors as e:
+            raise self._write_error(e) from e
         finally:
             self.mode = None
 
     @requires_mode(None)
     def _begin_search(self) -> None:
-        if self._index_is_empty() or not self._index_is_valid():
-            raise SearchError("Invalid index.")
+        if self._index_is_empty():
+            raise SearchError(
+                f"Cannot search the {self._describe()}: no index found. "
+                "Run the index command first."
+            )
+        problem = self._index_problem()
+        if problem is not None:
+            raise SearchError(
+                f"Cannot search the {self._describe()}: {problem}.\n"
+                f"{self._recovery_hint()}"
+            )
 
-        self._load_metadatas()
-        if self.prev_config is None or self.prev_manifest is None:
-            raise SearchError("Invalid index.")
+        try:
+            self._load_metadatas()
+        except RagError as e:
+            raise SearchError(
+                f"Cannot search the {self._describe()}: its metadata is "
+                f"unreadable.\n{e}\n{self._recovery_hint()}"
+            ) from e
+        assert self.prev_config is not None
+        assert self.prev_manifest is not None
 
         self._ensure_shared_resources()
-        self._load_index()
-        self._open_reader()
+        try:
+            self._load_index()
+            self._open_reader()
 
-        self.search_cache = Cache(
-            directory=self.index_path / Path("search_cache"),
-            size_limit=MAX_CACHE_SIZE * 1024 * 1024,
-            eviction_policy="least-recently-used",
-        )
+            self.search_cache = Cache(
+                directory=self.index_path / Path("search_cache"),
+                size_limit=MAX_CACHE_SIZE * 1024 * 1024,
+                eviction_policy="least-recently-used",
+            )
+        except self.storage_errors as e:
+            raise SearchError(
+                f"Cannot open the {self._describe()}: {e}\n"
+                f"If the index is corrupted: {self._recovery_hint()}"
+            ) from e
 
         raw_manifest = self.prev_manifest.model_dump(mode="json")
         raw_file_types = self.prev_config.indexing.model_dump(mode="json")[
@@ -356,16 +459,21 @@ class RetrievalBackend(ABC):
     @requires_mode(BackendMode.SEARCHING)
     def search(self, query: str, k: int) -> dict[Source, float]:
         assert self.search_cache is not None
-        value = self.search_cache.get((query, k, self.search_fingerprint))
-        if value is None:
-            out = self.get_index_hits(query, k)
-            self.search_cache.set((query, k, self.search_fingerprint), out)
+        try:
+            value = self.search_cache.get((query, k, self.search_fingerprint))
+            if value is None:
+                out = self.get_index_hits(query, k)
+                self.search_cache.set((query, k, self.search_fingerprint), out)
 
-        else:
-            out = [
-                (Source.model_validate(source), score)
-                for source, score in value
-            ]
+            else:
+                out = [
+                    (Source.model_validate(source), score)
+                    for source, score in value
+                ]
+        except self.storage_errors as e:
+            raise SearchError(
+                f"Search failed in the {self._describe()}: {e}"
+            ) from e
 
         search_results: dict[Source, float] = {}
         out.sort(key=lambda x: x[1], reverse=True)
