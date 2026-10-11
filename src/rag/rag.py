@@ -4,6 +4,8 @@ from functools import cached_property
 from hashlib import sha256
 from pathlib import Path
 from contextlib import contextmanager, ExitStack
+from rich.console import Console
+from rich.markdown import Markdown
 
 from .config import Config, load_config
 from .errors import RagError, IndexingError
@@ -151,7 +153,7 @@ class RAG:
             results = search(question, k, self.backends)
 
         answer = self.answerer.answer(results)
-        print(answer.answer)
+        Console().print(Markdown(answer.answer))
 
     def answer_dataset(
         self,

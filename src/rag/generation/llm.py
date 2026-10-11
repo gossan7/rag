@@ -47,6 +47,8 @@ class LLM:
             generation_config=self.generation_config,
             return_full_text=False,
         )[0]["generated_text"]
-
         assert isinstance(result, str)
-        return result
+
+        answer = result.split("</think>")[-1]
+
+        return answer
