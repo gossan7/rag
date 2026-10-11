@@ -13,6 +13,9 @@ from .retrieval_backend import RetrievalBackend
 
 class TFIDFBackend(RetrievalBackend):
     backend_type: ClassVar[Backend] = Backend.TFIDF
+    storage_errors: ClassVar[tuple[type[Exception], ...]] = (
+        *RetrievalBackend.storage_errors, xapian.Error
+    )
 
     def __init__(self, config: Config, logger: Logger) -> None:
         super().__init__(config, logger)

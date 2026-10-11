@@ -1,17 +1,19 @@
 from dotenv import load_dotenv
 from chromadb.config import Settings
+from chromadb.errors import ChromaError
 import chromadb
+import warnings
 
 from typing import Literal, TYPE_CHECKING, cast, ClassVar
 from collections.abc import Callable
 from functools import cached_property
-import warnings
 import os
 
 from ...enums import Backend, FileType
 from ...data_models import Source
 from ...config import Config
 from ...logger import Logger
+from ...errors import RagError
 from .retrieval_backend import RetrievalBackend
 
 if TYPE_CHECKING:
@@ -37,6 +39,9 @@ warnings.filterwarnings(
 
 class MiniLMBackend(RetrievalBackend):
     backend_type: ClassVar[Backend] = Backend.MINILM
+    storage_errors: ClassVar[tuple[type[Exception], ...]] = (
+        *RetrievalBackend.storage_errors, ChromaError
+    )
 
     def __init__(self, config: Config, logger: Logger) -> None:
         super().__init__(config, logger)
@@ -49,7 +54,6 @@ class MiniLMBackend(RetrievalBackend):
 
     @cached_property
     def model(self) -> "SentenceTransformer":
-        self.logger.info("Loading MiniLM...")
         import torch
         from sentence_transformers import SentenceTransformer
         from transformers.utils import logging as transformers_logging
@@ -65,30 +69,37 @@ class MiniLMBackend(RetrievalBackend):
         set_verbosity_error()
         load_dotenv()
 
-        if torch.cuda.is_available():
-            self.logger.info(
-                "CUDA available."
-            )
-            model = SentenceTransformer(
-                model_name_or_path=MODEL_NAME,
-                device="cuda",
-                model_kwargs={"torch_dtype": torch.float16},
-            )
-        else:
-            self.logger.info(
-                "CUDA not available, will default to cpu + OpenVINO."
-                " (quantized)"
-            )
-            model = SentenceTransformer(
-                model_name_or_path=MODEL_NAME,
-                backend=CPU_BACKEND,
-                device="cpu",
-                model_kwargs={
-                    "file_name": "openvino/openvino_model_qint8_quantized.xml"
-                }
-            )
+        try:
+            if torch.cuda.is_available():
+                self.logger.info(
+                    f"Loading embedding model '{MODEL_NAME}' on CUDA..."
+                )
+                model = SentenceTransformer(
+                    model_name_or_path=MODEL_NAME,
+                    device="cuda",
+                    model_kwargs={"torch_dtype": torch.float16},
+                )
+            else:
+                self.logger.info(
+                    f"Loading embedding model '{MODEL_NAME}' on CPU "
+                    "(CUDA unavailable, using quantized OpenVINO)..."
+                )
+                model = SentenceTransformer(
+                    model_name_or_path=MODEL_NAME,
+                    backend=CPU_BACKEND,
+                    device="cpu",
+                    model_kwargs={
+                        "file_name":
+                            "openvino/openvino_model_qint8_quantized.xml"
+                    }
+                )
+        except (OSError, ValueError, RuntimeError) as e:
+            raise RagError(
+                f"Cannot load embedding model '{MODEL_NAME}' for the "
+                f"{self.backend_type.value} backend: {e}\n"
+                "Check your network connection or the Hugging Face cache."
+            ) from e
 
-        self.logger.info("MiniLM loaded.")
         return model
 
     def _ensure_shared_resources(self) -> None:

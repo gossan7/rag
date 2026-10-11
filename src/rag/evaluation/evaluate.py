@@ -27,7 +27,8 @@ def evaluate(
         n_results = min(len(result_sources[id]), all_recall[-1])
         if n_sources == 0:
             raise EvaluationError(
-                f"Dataset is invalid (missing sources for question_id '{id}')"
+                f"Cannot evaluate: question '{id}' has an empty 'sources' "
+                f"list in dataset '{dataset_path}'."
             )
 
         for i, r_source in enumerate(result_sources[id]):
@@ -61,16 +62,25 @@ def evaluate(
     for k, v in full_recall.items():
         full_recall[k] = (v / n_questions)
 
-    print(f"Questions evaluated: {n_questions}")
+    if incorrect or estimated:
+        logger.warning(
+            "Some questions have fewer retrieved sources than the evaluated "
+            "k: the affected values are flagged 'estimated' (some "
+            "questions) or 'lower bound' (all questions)."
+        )
 
+    logger.result(f"Questions evaluated: {n_questions}")
+
+    width = len(f"Recall@{all_recall[-1]}:")
     for k in all_recall:
         if k in incorrect:
-            confidence = "(lower bound)"
+            confidence = " (lower bound)"
         elif k in estimated:
-            confidence = "(estimated)"
+            confidence = " (estimated)"
         else:
             confidence = ""
 
         score = full_recall[k]
         percent = score * 100
-        print(f"Recall@{k}: {score:.2f} ({(percent):.2f})", confidence)
+        label = f"Recall@{k}:".ljust(width)
+        logger.result(f"{label} {score:.2f} ({percent:.2f}%){confidence}")

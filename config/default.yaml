@@ -3,7 +3,7 @@
 # Specifies path for: files to process, directory to save index, datasets, and output.
 # Do not change unless you know what you're doing
 paths:
-  raw: 'data/raw/flyin-master'
+  raw: "data/raw"
   processed: "data/processed"
   datasets: "data/datasets"
   output: "data/output"
@@ -55,7 +55,8 @@ evaluation:
 answer:
   model_name: "Qwen/Qwen3-0.6B"
   path: "generation"
-  thinking_mode: True
+  thinking_mode: False
   temperature: 0.7
+  max_input_tokens: 20000
   max_output_tokens: 1024
   preprompt: ""

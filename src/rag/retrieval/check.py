@@ -12,36 +12,49 @@ def check(
     backends: list[RetrievalBackend],
     logger: Logger
 ) -> None:
-    logger.info("Checking corpus and indexes coherence...")
     if not config.paths.raw.is_dir():
         raise SearchError(
-            f"Corpus directory not found: {config.paths.raw}"
+            f"Cannot check the indexes: corpus directory "
+            f"'{config.paths.raw}' not found. Check 'paths.raw' in the "
+            "configuration."
         )
+    logger.info(f"Checking indexes against corpus '{config.paths.raw}'...")
 
+    warnings: list[tuple[str, str]] = []
     for bkd in backends:
         bkd_name = bkd.backend_type.value
         prev = bkd.prev_config
         if prev is None:
-            raise SearchError(f"{bkd_name} index is invalid (fatal).")
+            raise SearchError(
+                f"Cannot check the {bkd_name} index at '{bkd.index_path}': "
+                "its stored configuration is not loaded."
+            )
 
         for ftype, prev_ftype_config in prev.indexing.file_types.items():
             ftype_config = config.indexing.file_types[ftype]
             if not ftype_config.enabled and not prev_ftype_config.enabled:
                 continue
             if ftype_config.enabled and not prev_ftype_config.enabled:
-                logger.warning(
-                    f"{bkd_name} is missing {ftype.value} files."
-                )
-            if not ftype_config.enabled and prev_ftype_config.enabled:
-                logger.warning(
-                    f"{bkd_name} contains {ftype.value} files."
-                )
-            if ftype_config.chunking_method \
+                warnings.append((
+                    bkd_name,
+                    f"{ftype.value} files are enabled in the configuration "
+                    "but were not indexed; they will not appear in results."
+                ))
+            elif not ftype_config.enabled and prev_ftype_config.enabled:
+                warnings.append((
+                    bkd_name,
+                    f"{ftype.value} files are disabled in the configuration "
+                    "but are still indexed; they may appear in results."
+                ))
+            elif ftype_config.chunking_method \
                     != prev_ftype_config.chunking_method:
-                logger.warning(
-                    f"{bkd_name} has a different chunking_method "
-                    f"for {ftype.value} files than current config."
-                )
+                warnings.append((
+                    bkd_name,
+                    f"{ftype.value} files were indexed with chunking method "
+                    f"'{prev_ftype_config.chunking_method.value}', but the "
+                    "configuration now uses "
+                    f"'{ftype_config.chunking_method.value}'."
+                ))
 
     file_types = set((
         ftype for ftype, ftype_config in config.indexing.file_types.items()
@@ -64,7 +77,7 @@ def check(
     incorrect_files = {bkd.backend_type: 0 for bkd in backends}
 
     for file_data in logger.loading_bar(
-        "Sanity check", file_iterator, n_files
+        "Checking corpus", file_iterator, n_files
     ):
         _, file_path, file_content = file_data
         all_files.add(file_path)
@@ -77,16 +90,40 @@ def check(
     for bkd in backends:
         bkd_name = bkd.backend_type.value
         if bkd.prev_manifest is None:
-            raise SearchError(f"{bkd_name} index is invalid (fatal).")
+            raise SearchError(
+                f"Cannot check the {bkd_name} index at '{bkd.index_path}': "
+                "its manifest is not loaded."
+            )
 
         missing = len(all_files - bkd.prev_manifest.files.keys())
         incorrect = incorrect_files[bkd.backend_type]
         extra = len(bkd.prev_manifest.files.keys() - all_files)
 
-        if missing or incorrect or extra:
-            logger.warning(
-                f"{bkd_name} is invalid: "
-                f"{missing}/{n_files} missing files, "
-                f"{incorrect}/{n_files} changed files, "
-                f"{extra} extra files"
+        differences: list[str] = []
+        if missing:
+            differences.append(
+                f"{logger.count(missing, 'corpus file')} not indexed"
             )
+        if incorrect:
+            differences.append(
+                f"{logger.count(incorrect, 'file')} modified since indexing"
+            )
+        if extra:
+            differences.append(
+                f"{logger.count(extra, 'indexed file')} no longer in the "
+                "corpus"
+            )
+        if differences:
+            warnings.append((
+                bkd_name,
+                "index is out of date with the corpus "
+                f"({n_files} files): {', '.join(differences)}."
+            ))
+
+    for warning in logger.merge_labels(warnings):
+        logger.warning(warning)
+    if warnings:
+        logger.info(
+            "Search continues on the indexed snapshot. "
+            "Run the index command to update it."
+        )

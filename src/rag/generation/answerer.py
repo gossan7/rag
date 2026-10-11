@@ -2,10 +2,11 @@ from diskcache import Cache
 
 from functools import cached_property
 import json
+import sqlite3
 
 from ..config import Config
 from ..logger import Logger
-from ..errors import RagError
+from ..errors import RagError, AnswerError
 from ..data_models import (
     SearchResults, Answer, Source, load_source, source_is_valid
 )
@@ -49,20 +50,25 @@ class Answerer:
             self.preprompt = None
 
         cache_dir = self.config.paths.processed / self.config.answer.path
-        cache_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            cache_dir.mkdir(parents=True, exist_ok=True)
 
-        self.answer_cache = Cache(
-            directory=cache_dir,
-            size_limit=MAX_CACHE_SIZE * 1024 * 1024,
-            eviction_policy="least-recently-used",
-        )
+            self.answer_cache = Cache(
+                directory=cache_dir,
+                size_limit=MAX_CACHE_SIZE * 1024 * 1024,
+                eviction_policy="least-recently-used",
+            )
+        except (OSError, sqlite3.Error) as e:
+            raise AnswerError(
+                f"Cannot open the answer cache at '{cache_dir}': {e}\n"
+                "Check 'paths.processed' and 'answer.path' in the "
+                "configuration."
+            ) from e
+        self.last_from_cache: bool = False
 
     @cached_property
     def model(self) -> LLM:
-        self.logger.info(f"Loading {self.config.answer.model_name}...")
-        model = LLM(self.config, self.logger)
-        self.logger.info(f"{self.config.answer.model_name} loaded.")
-        return model
+        return LLM(self.config, self.logger)
 
     def _get_message(
         self,
@@ -70,14 +76,13 @@ class Answerer:
     ) -> tuple[list[dict[str, str]], list[Source]]:
         message_content: list[str] = []
         used_sources: list[Source] = []
+        skipped: list[str] = []
 
         for source in sourced_query.retrieved_sources:
             try:
                 content = load_source(source)
-            except RagError:
-                self.logger.warning(
-                    f"Invalid source: {source.file_path}"
-                )
+            except RagError as e:
+                skipped.append(f"- {e}")
                 continue
 
             message_content.append(
@@ -85,8 +90,24 @@ class Answerer:
             )
             used_sources.append(source)
 
+        n_sources = len(sourced_query.retrieved_sources)
+        if not n_sources:
+            raise AnswerError(
+                "Cannot answer the question: no source was retrieved for it."
+            )
         if not message_content:
-            raise RagError("Can't answer the question without any source.")
+            raise AnswerError(
+                f"Cannot answer the question: none of its {n_sources} "
+                "retrieved sources can be used.\n" + "\n".join(skipped) +
+                "\nRun the index command, then search again, to refresh "
+                "the sources."
+            )
+        if skipped:
+            self.logger.warning(
+                f"Ignoring {len(skipped)} of {n_sources} retrieved sources "
+                f"for question '{sourced_query.question_id}':\n" +
+                "\n".join(skipped)
+            )
 
         message_content.append(
             f"query: {sourced_query.question.strip()}"
@@ -144,6 +165,7 @@ class Answerer:
             if answer is not None:
                 self.answer_cache.set(("request", request_key), c_answer_key)
 
+        self.last_from_cache = answer is not None
         if answer is None:
             message, used_sources = self._get_message(query)
             c_answer_key["sources"] = [
