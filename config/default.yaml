@@ -4,7 +4,7 @@
 # Do not change unless you know what you're doing
 paths:
   raw: "data/raw"
-  processed: "data/processed"
+  processed: "data/processed/default"
   datasets: "data/datasets"
   output: "data/output"
 
@@ -31,11 +31,11 @@ retrieval:
   backends:
     tfidf:
       enabled: true
-      weight: 0.5
+      weight: 0.3
       path: "tfidf"
     bm25:
       enabled: true
-      weight: 0.5
+      weight: 0.9
       path: "bm25"
     minilm:
       enabled: true
@@ -46,7 +46,7 @@ retrieval:
 # Defines recall@k that will be tested with evaluate.
 # Subject shows: 1, 3, 5, 10.
 evaluation:
-  recall: [1, 3, 5, 10]
+  recall: [1, 3, 5, 10, 20]
   min_iou: 0.05
 
 

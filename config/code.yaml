@@ -1,0 +1,64 @@
+# Config for RagCLI, tuned for recall@k on dataset_code_public.json.
+# Only Python files are indexed; tests and examples are excluded (no expected source lives there).
+# Usage: --config_file=code.yaml (it has its own index directory).
+
+# Specifies path for: files to process, directory to save index, datasets, and output.
+# Do not change unless you know what you're doing
+paths:
+  raw: "data/raw"
+  processed: "data/processed/code"
+  datasets: "data/datasets"
+  output: "data/output"
+
+
+# Specifies which file types will be processed, which directories to exclude, and which chunking method is used.
+# Available chunking methods are: ast (python only), langchain, window
+indexing:
+  excludes: ["__pycache__", ".git", ".venv", "tests", "examples"]
+  file_types:
+    .py:
+      chunking_method: "ast"
+      enabled: true
+    .md:
+      chunking_method: "langchain"
+      enabled: false
+    .txt:
+      chunking_method: "langchain"
+      enabled: false
+
+
+# Specifies which backend will be used for both indexing and searching.
+# Multiple backends can be enabled. The score used for search would then a weighted rank fusion.
+retrieval:
+  backends:
+    tfidf:
+      enabled: true
+      weight: 0.1
+      path: "tfidf"
+    bm25:
+      enabled: true
+      weight: 0.8
+      path: "bm25"
+    minilm:
+      enabled: true
+      weight: 1.0
+      path: "minilm"
+
+
+# Defines recall@k that will be tested with evaluate.
+# Subject shows: 1, 3, 5, 10.
+evaluation:
+  recall: [1, 3, 5, 10]
+  min_iou: 0.05
+
+
+# Specifies which model to use for generation. Also specifies the maximum context length.
+# The context length cannot be more than 20 000.
+answer:
+  model_name: "Qwen/Qwen3-0.6B"
+  path: "generation"
+  thinking_mode: False
+  temperature: 0.7
+  max_input_tokens: 20000
+  max_output_tokens: 1024
+  preprompt: ""

@@ -191,6 +191,9 @@ class LLM:
             raise AnswerError(
                 f"Generation failed with model '{model_name}': {e}"
             ) from e
-        assert isinstance(result, str)
+        if not isinstance(result, str):
+            raise AnswerError(
+                f"Model '{model_name}' returned an unexpected output format."
+            )
 
         return self._get_final_answer(result)
