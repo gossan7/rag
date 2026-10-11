@@ -73,7 +73,7 @@ evaluate: install
 	$(PYTHON) -m $(MODULE) evaluate $(ARGS)
 
 serve: install
-	$(UV) run uvicorn src.rag.rag_http_api:app --host $(HOST) --port $(PORT)
+	$(PYTHON) -m src.rag.rag_http_api --host $(HOST) --port $(PORT)
 
 client:
 	$(XDG) http://$(HOST):$(PORT)/$(INTERFACE)
