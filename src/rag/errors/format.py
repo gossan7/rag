@@ -5,6 +5,20 @@ MAX_INPUT_LENGTH = 60
 
 
 def format_validation_error(error: ValidationError) -> str:
+    """Render a pydantic validation error as a short bullet list.
+
+    Each error becomes one ``- 'location': message`` line. Unknown
+    and missing fields get a dedicated message, the rejected input
+    is appended to type and constraint errors (truncated to
+    ``MAX_INPUT_LENGTH`` characters), duplicated lines are dropped
+    and at most ``MAX_DETAILS`` lines are kept.
+
+    Args:
+        error: Validation error to format.
+
+    Returns:
+        The formatted lines joined by newlines.
+    """
     lines: list[str] = []
     for err in error.errors():
         loc = [str(part) for part in err["loc"]]

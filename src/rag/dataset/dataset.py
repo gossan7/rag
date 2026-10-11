@@ -8,6 +8,18 @@ from ..errors import RagError, format_validation_error
 
 
 def load_dataset(path: Path) -> RagDataset:
+    """Load and validate a question dataset from a JSON file.
+
+    Args:
+        path: Path of the dataset file.
+
+    Returns:
+        The validated dataset.
+
+    Raises:
+        RagError: If the file is missing, unreadable, not valid JSON,
+            or does not match the ``RagDataset`` model.
+    """
     if not path.is_file():
         raise RagError(
             f"Cannot load dataset '{path}': file not found."

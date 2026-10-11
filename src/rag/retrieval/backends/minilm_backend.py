@@ -38,12 +38,29 @@ warnings.filterwarnings(
 
 
 class MiniLMBackend(RetrievalBackend):
+    """Semantic retrieval backend based on MiniLM embeddings.
+
+    Chunks are embedded with ``all-MiniLM-L6-v2`` and stored in a
+    persistent Chroma collection using the cosine distance. Chunks
+    are buffered and embedded in batches when the index is
+    committed. Only embeddings and metadata are stored, not the
+    chunk text.
+    """
+
     backend_type: ClassVar[Backend] = Backend.MINILM
     storage_errors: ClassVar[tuple[type[Exception], ...]] = (
         *RetrievalBackend.storage_errors, ChromaError
     )
 
     def __init__(self, config: Config, logger: Logger) -> None:
+        """Reset the Chroma handles and the pending chunk buffers.
+
+        Neither the vector store nor the embedding model is loaded here.
+
+        Args:
+            config: Validated application configuration.
+            logger: Logger used to report the model loading.
+        """
         super().__init__(config, logger)
 
         self.client: ClientAPI | None = None
@@ -54,6 +71,15 @@ class MiniLMBackend(RetrievalBackend):
 
     @cached_property
     def model(self) -> "SentenceTransformer":
+        """Return the embedding model, loading it on first access.
+
+        On CUDA the model is loaded with PyTorch in half precision. On
+        CPU the 8-bit quantized OpenVINO export of the model is used.
+        The model may be downloaded from the Hugging Face Hub.
+
+        Raises:
+            RagError: If the model cannot be downloaded or loaded.
+        """
         import torch
         from sentence_transformers import SentenceTransformer
         from transformers.utils import logging as transformers_logging
@@ -103,9 +129,11 @@ class MiniLMBackend(RetrievalBackend):
         return model
 
     def _ensure_shared_resources(self) -> None:
+        """Do nothing: the model is loaded lazily when first needed."""
         pass
 
     def _create_index(self) -> None:
+        """Open the Chroma store and create the cosine collection."""
         self.client = chromadb.PersistentClient(
             self.data_path,
             settings=Settings(anonymized_telemetry=False)
@@ -121,6 +149,7 @@ class MiniLMBackend(RetrievalBackend):
         )
 
     def _load_index(self) -> None:
+        """Open the Chroma store and its existing collection."""
         self.client = chromadb.PersistentClient(
             self.data_path,
             settings=Settings(anonymized_telemetry=False)
@@ -128,15 +157,19 @@ class MiniLMBackend(RetrievalBackend):
         self.collection = self.client.get_collection(COLLECTION_NAME)
 
     def _open_writer(self) -> None:
+        """Do nothing: the collection is written to directly."""
         pass
 
     def _close_writer(self) -> None:
+        """Do nothing: there is no writer to release."""
         pass
 
     def _open_reader(self) -> None:
+        """Do nothing: the collection is queried directly."""
         pass
 
     def _close_reader(self) -> None:
+        """Do nothing: there is no reader to release."""
         pass
 
     def _add_chunk_to_index(
@@ -145,6 +178,15 @@ class MiniLMBackend(RetrievalBackend):
         chunk: Source,
         chunk_content: str
     ) -> None:
+        """Buffer a chunk until the next commit.
+
+        The chunk identifier is built from its path and character range.
+
+        Args:
+            file_type: Type of the file the chunk comes from.
+            chunk: Location and content hash of the chunk.
+            chunk_content: Text of the chunk, to be embedded.
+        """
         path = chunk.file_path
         start = chunk.first_character_index
         end = chunk.last_character_index
@@ -161,14 +203,25 @@ class MiniLMBackend(RetrievalBackend):
         })
 
     def _remove_file_from_index(self, file_path: str) -> None:
+        """Delete the stored chunks of a file from the collection.
+
+        Args:
+            file_path: Path of the corpus file.
+        """
         assert self.collection is not None
         self.collection.delete(where={"file_path": file_path})
 
     def _remove_file_type_from_index(self, file_type: FileType) -> None:
+        """Delete the stored chunks of a file type from the collection.
+
+        Args:
+            file_type: File type to remove.
+        """
         assert self.collection is not None
         self.collection.delete(where={"file_type": file_type.value})
 
     def _remove_all_documents_from_index(self) -> None:
+        """Drop the collection and create it again, empty."""
         assert self.client is not None
         self.client.delete_collection(name=COLLECTION_NAME)
         self.collection = self.client.create_collection(
@@ -181,6 +234,11 @@ class MiniLMBackend(RetrievalBackend):
         )
 
     def _commit_index(self) -> None:
+        """Embed the buffered chunks and add them to the collection.
+
+        Embeddings are normalized. They are sent to Chroma in slices no
+        larger than its maximum batch size, then the buffers are emptied.
+        """
         assert self.client is not None
         assert self.collection is not None
 
@@ -212,6 +270,16 @@ class MiniLMBackend(RetrievalBackend):
         query: str,
         k: int
     ) -> list[tuple[Source, float]]:
+        """Return the chunks closest to the embedded query.
+
+        Args:
+            query: Non-blank text of the query.
+            k: Maximum number of hits.
+
+        Returns:
+            At most ``k`` pairs made of a source and its negated cosine
+            distance, so that a higher score means a closer chunk.
+        """
         assert self.collection is not None
         query_embedding = self.model.encode(
             [query],

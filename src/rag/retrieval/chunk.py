@@ -9,8 +9,6 @@ from .chunking import window_chunk, langchain_chunk, ast_chunk
 Chunker: TypeAlias = Callable[[FileData, int], list[MinimalSource]]
 
 
-DEFAULT_MIN_CHUNK_SIZE = 400
-
 CHUNKING: dict[ChunkingMethod, Chunker] = {
     ChunkingMethod.WINDOW: window_chunk,
     ChunkingMethod.LANGCHAIN: langchain_chunk,
@@ -21,6 +19,16 @@ CHUNKING: dict[ChunkingMethod, Chunker] = {
 def chunk_file(
     config: Config, file_data: FileData, max_chunk_size: int
 ) -> list[MinimalSource]:
+    """Split a file with the chunking method of its file type.
+
+    Args:
+        config: Configuration mapping file types to chunking methods.
+        file_data: Type, path and decoded content of the file.
+        max_chunk_size: Maximum chunk size in characters.
+
+    Returns:
+        The chunk locations, as character ranges of the file content.
+    """
     ext, _, _ = file_data
     chunking_method = config.indexing.file_types[ext].chunking_method
     return CHUNKING[chunking_method](file_data, max_chunk_size)

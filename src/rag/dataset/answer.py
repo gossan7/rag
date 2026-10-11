@@ -7,6 +7,17 @@ def dump_answers(
     answers: RagSearchResultsAndAnswer,
     save_path: Path
 ) -> None:
+    """Write the answers of a dataset to an indented JSON file.
+
+    Missing parent directories are created.
+
+    Args:
+        answers: Answers to serialize.
+        save_path: Destination file, overwritten when it exists.
+
+    Raises:
+        AnswerError: If the file cannot be written.
+    """
     try:
         save_path.parent.mkdir(parents=True, exist_ok=True)
         with open(save_path, mode="w", encoding="utf-8") as f:

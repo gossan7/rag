@@ -11,6 +11,24 @@ def load_config(
     file_name: str = "default.yaml",
     config_dir: Path = Path("config/")
 ) -> Config:
+    """Load and validate a YAML configuration file.
+
+    The file is searched recursively under ``config_dir`` and the
+    first match is used.
+
+    Args:
+        file_name: Name of the configuration file to look for.
+        config_dir: Directory searched for the file.
+
+    Returns:
+        The validated configuration.
+
+    Raises:
+        ConfigError: If the directory or the file is missing, if the
+            name is not a valid search pattern, if the file cannot be
+            read or is not valid YAML, if its top level is not a
+            mapping, or if it fails validation.
+    """
     if not config_dir.is_dir():
         raise ConfigError(
             f"Cannot load configuration '{file_name}': "

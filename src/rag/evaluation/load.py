@@ -10,6 +10,24 @@ def load_and_validate(
     dataset_path: str
 ) -> tuple[dict[str, list[MinimalSource]],
            dict[str, list[Source]], set[str]]:
+    """Load search results and their ground truth for evaluation.
+
+    Args:
+        rag_search_results_path: Path of the search results file.
+        dataset_path: Path of the answered dataset.
+
+    Returns:
+        A tuple made of the expected sources by question identifier,
+        the retrieved sources by question identifier, and the set of
+        question identifiers.
+
+    Raises:
+        EvaluationError: If either file holds no question, if the
+            numbers of questions differ, if a dataset question has no
+            expected sources, or if the question identifiers of the
+            two files do not match.
+        RagError: If one of the files cannot be loaded.
+    """
     results = load_results(Path(rag_search_results_path))
     dataset = load_dataset(Path(dataset_path))
 

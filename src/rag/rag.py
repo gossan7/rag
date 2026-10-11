@@ -45,13 +45,40 @@ RETRIEVAL_BACKENDS: dict[Backend, Type[RetrievalBackend]] = {
 
 
 class RAG:
+    """Orchestrate indexing, retrieval, generation and evaluation.
+
+    This is the service layer shared by the command-line interface
+    and the HTTP API. It owns the configuration, the logger, the
+    enabled retrieval backends and the answerer, and reports the
+    progress and outcome of each operation.
+    """
+
     def __init__(self, config_file: str) -> None:
+        """Load the configuration and create the answerer.
+
+        Creating the answerer opens the persistent answer cache, which
+        creates its directory when missing. Retrieval backends and
+        models are only created when first needed.
+
+        Args:
+            config_file: Name of a configuration file located in the
+                ``config`` directory.
+
+        Raises:
+            ConfigError: If the configuration is missing or invalid.
+            AnswerError: If the answer cache cannot be opened.
+        """
         self.config: Config = load_config(config_file)
         self.logger: Logger = Logger()
         self.answerer: Answerer = Answerer(self.config, self.logger)
 
     @cached_property
     def backends(self) -> list[RetrievalBackend]:
+        """Return the enabled retrieval backends, created on first access.
+
+        The backends keep the order in which they are declared in the
+        configuration.
+        """
         return [
             RETRIEVAL_BACKENDS[bkd](self.config, self.logger)
             for bkd, bkd_config in self.config.retrieval.backends.items()
@@ -59,6 +86,26 @@ class RAG:
         ]
 
     def index(self, max_chunk_size: int) -> None:
+        """Build or incrementally update the index of every backend.
+
+        Files are read once and handed to the enabled backends, each of
+        which only re-indexes the files it does not already hold in
+        their current version.
+
+        Args:
+            max_chunk_size: Maximum chunk size in characters, from 1 to
+                2000.
+
+        Raises:
+            IndexingError: If the chunk size is out of range, if the
+                corpus directory is missing or holds no indexable file,
+                if an existing index is incomplete or unreadable, or if
+                reading the corpus or writing an index fails. When the
+                run is aborted, the message lists the indexes left marked
+                as incomplete.
+            KeyboardInterrupt: Re-raised after warning about the indexes
+                left marked as incomplete.
+        """
         if max_chunk_size < 1 or max_chunk_size > 2000:
             raise IndexingError(
                 f"Invalid max_chunk_size {max_chunk_size}: expected an "
@@ -146,6 +193,27 @@ class RAG:
         )
 
     def search(self, query: str, k: int = 5) -> SearchResults:
+        """Retrieve and print the best sources of a single query.
+
+        The indexes are first compared with the current corpus; any
+        difference is only reported as a warning and the search runs on
+        the indexed snapshot. A blank query or a non-positive ``k``
+        yields no result.
+
+        Args:
+            query: Text of the query.
+            k: Maximum number of sources to return.
+
+        Returns:
+            The results, whose question identifier is the SHA-256 of the
+            stripped query.
+
+        Raises:
+            SearchError: If an index is missing, incomplete or
+                unreadable, or if the corpus directory is missing.
+            IndexingError: If a corpus file cannot be read during the
+                index check.
+        """
         question = UnansweredQuestion(
             question_id=sha256(query.strip().encode("utf-8")).hexdigest(),
             question=query
@@ -177,6 +245,22 @@ class RAG:
         k: int,
         save_directory: str
     ) -> None:
+        """Search every question of a dataset and save the results.
+
+        The results are written to ``save_directory`` under the file
+        name of the dataset.
+
+        Args:
+            dataset_path: Path of the dataset JSON file.
+            k: Maximum number of sources per question.
+            save_directory: Directory receiving the results file.
+
+        Raises:
+            SearchError: If the output file would overwrite the dataset,
+                if an index cannot be searched, or if the results cannot
+                be written.
+            RagError: If the dataset cannot be loaded.
+        """
         input_path = Path(dataset_path)
         output_path = Path(save_directory) / input_path.name
         if output_path.resolve() == input_path.resolve():
@@ -209,6 +293,21 @@ class RAG:
         self.logger.success(f"Search results saved to '{output_path}'.")
 
     def answer(self, query: str, k: int = 5) -> Answer:
+        """Retrieve sources for a query and print a generated answer.
+
+        The answer is rendered as Markdown on standard output.
+
+        Args:
+            query: Text of the query.
+            k: Maximum number of sources given to the model.
+
+        Returns:
+            The question, its retrieved sources and the answer.
+
+        Raises:
+            SearchError: If an index cannot be searched.
+            AnswerError: If no source is usable or generation fails.
+        """
         question = UnansweredQuestion(
             question=query
         )
@@ -230,6 +329,24 @@ class RAG:
         student_search_results_path: str,
         save_directory: str
     ) -> None:
+        """Answer every question of a search results file and save them.
+
+        The indexes are not queried: sources come from the file and are
+        read from the current corpus. A question that cannot be answered
+        gets a placeholder answer and is counted as failed, so that the
+        output always holds one entry per question. The answers are
+        written to ``save_directory`` under the name of the input file.
+
+        Args:
+            student_search_results_path: Path of the search results.
+            save_directory: Directory receiving the answers file.
+
+        Raises:
+            AnswerError: If the output file would overwrite the input or
+                cannot be written.
+            ModelLoadError: If the generation model cannot be loaded.
+            SearchError: If the search results cannot be loaded.
+        """
         input_path = Path(student_search_results_path)
         output_path = Path(save_directory) / input_path.name
         if output_path.resolve() == input_path.resolve():
@@ -295,6 +412,16 @@ class RAG:
         student_search_results_path: str,
         dataset_path: str
     ) -> None:
+        """Print recall@k of search results against an answered dataset.
+
+        Args:
+            student_search_results_path: Path of the search results.
+            dataset_path: Path of the ground-truth dataset.
+
+        Raises:
+            RagError: If a file cannot be loaded or the two files do not
+                describe the same questions.
+        """
         evaluate(
             self.config,
             student_search_results_path,
@@ -304,6 +431,12 @@ class RAG:
         self.logger.success("Evaluation completed.")
 
     def ensure_indexable(self) -> None:
+        """Check that every backend index can be updated.
+
+        Raises:
+            IndexingError: If at least one existing index is incomplete.
+                The message holds the problem of every such index.
+        """
         problems: list[str] = []
         for backend in self.backends:
             try:
@@ -314,6 +447,14 @@ class RAG:
             raise IndexingError("\n".join(problems))
 
     def aborted_index_note(self) -> str:
+        """Describe the indexes left incomplete by an aborted run.
+
+        Returns:
+            A message, starting with a newline, listing the index
+            directories that still hold the interruption marker along
+            with the manual recovery procedure, or an empty string when
+            there is none.
+        """
         incomplete = [
             f"- '{backend.index_path}'" for backend in self.backends
             if backend.marker.is_file()
@@ -332,6 +473,17 @@ class RAG:
         self,
         max_chunk_size: int,
     ) -> Generator[None, None, None]:
+        """Open an indexing session on every backend at once.
+
+        Sessions are closed in reverse order. If the block raises, each
+        backend aborts and keeps its interruption marker.
+
+        Args:
+            max_chunk_size: Maximum chunk size in characters.
+
+        Yields:
+            None, while every backend accepts files and chunks.
+        """
         with ExitStack() as stack:
             for backend in self.backends:
                 stack.enter_context(backend.index_session(max_chunk_size))
@@ -339,6 +491,11 @@ class RAG:
 
     @contextmanager
     def search_session(self) -> Generator[None, None, None]:
+        """Open a search session on every backend at once.
+
+        Yields:
+            None, while every backend can be searched.
+        """
         with ExitStack() as stack:
             for backend in self.backends:
                 stack.enter_context(backend.search_session())

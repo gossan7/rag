@@ -16,7 +16,35 @@ MAX_CACHE_SIZE = 512
 
 
 class Answerer:
+    """Generate answers grounded in retrieved sources, with caching.
+
+    The answerer builds the chat prompt from the sources that can
+    still be verified against the corpus, delegates generation to a
+    lazily loaded LLM and stores answers in a persistent cache. The
+    cache keeps answers generated from sources that changed or
+    disappeared since, so that results of an older index snapshot
+    can still be served.
+
+    Attributes:
+        last_from_cache: Whether the last call to ``answer`` was
+            served from the cache.
+    """
+
     def __init__(self, config: Config, logger: Logger) -> None:
+        """Prepare the prompts and open the persistent answer cache.
+
+        The cache directory (``answer.path`` under ``paths.processed``)
+        is created when missing. The generation model is not loaded
+        here.
+
+        Args:
+            config: Validated application configuration.
+            logger: Logger used for warnings about skipped sources.
+
+        Raises:
+            AnswerError: If the cache directory cannot be created or the
+                cache cannot be opened.
+        """
         self.config: Config = config
         self.logger: Logger = logger
 
@@ -68,12 +96,36 @@ class Answerer:
 
     @cached_property
     def model(self) -> LLM:
+        """Return the generation model, loading it on first access.
+
+        Raises:
+            ModelLoadError: If the model cannot be loaded.
+        """
         return LLM(self.config, self.logger)
 
     def _get_message(
         self,
         sourced_query: SearchResults
     ) -> tuple[list[dict[str, str]], list[Source]]:
+        """Build the chat messages of a question from its sources.
+
+        Each source is read from the current corpus and verified against
+        its chunk hash. Sources that cannot be loaded are skipped with a
+        warning; the remaining ones are numbered in retrieval order and
+        followed by the stripped question in a single user message. No
+        source is dropped or truncated to fit a token budget.
+
+        Args:
+            sourced_query: Question with its retrieved sources.
+
+        Returns:
+            The messages (system prompt, optional preprompt, then the
+            user message) and the sources actually placed in the prompt.
+
+        Raises:
+            AnswerError: If no source was retrieved or if none of the
+                retrieved sources can be used.
+        """
         message_content: list[str] = []
         used_sources: list[Source] = []
         skipped: list[str] = []
@@ -125,6 +177,32 @@ class Answerer:
         return ([self.chat_template, message], used_sources)
 
     def answer(self, query: SearchResults) -> Answer:
+        """Answer a question from its retrieved sources, using the cache.
+
+        Two kinds of cache entries are used. A request entry maps the
+        question, all its retrieved sources and the answer settings to
+        the key of the answer generated for it. An answer entry maps
+        the question, the sources actually used and the answer settings
+        to the answer text.
+
+        An answer recorded for the request is reused as long as every
+        currently valid source belongs to the sources it was generated
+        from, which keeps serving an answer whose sources were modified
+        or deleted afterwards. Otherwise an answer generated from
+        exactly the currently valid sources is looked up. On a miss the
+        answer is generated and both entries are stored.
+
+        Args:
+            query: Question with its retrieved sources.
+
+        Returns:
+            The question, all its retrieved sources and the answer.
+
+        Raises:
+            AnswerError: If no usable source is available or if the
+                generation fails.
+            ModelLoadError: If the generation model cannot be loaded.
+        """
         request_key = {
             "question": query.question,
             "sources": [

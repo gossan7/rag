@@ -8,6 +8,20 @@ from ..errors import SearchError, format_validation_error
 
 
 def load_results(path: Path) -> RagSearchResults:
+    """Load and validate search results from a JSON file.
+
+    Sources without a ``chunk_hash`` are accepted.
+
+    Args:
+        path: Path of the search results file.
+
+    Returns:
+        The validated search results.
+
+    Raises:
+        SearchError: If the file is missing, unreadable, not valid
+            JSON, or does not match the ``RagSearchResults`` model.
+    """
     if not path.is_file():
         raise SearchError(
             f"Cannot load search results '{path}': file not found."
@@ -42,6 +56,17 @@ def dump_results(
     search_results: RagSearchResults,
     save_path: Path
 ) -> None:
+    """Write the search results of a dataset to an indented JSON file.
+
+    Missing parent directories are created.
+
+    Args:
+        search_results: Search results to serialize.
+        save_path: Destination file, overwritten when it exists.
+
+    Raises:
+        SearchError: If the file cannot be written.
+    """
     try:
         save_path.parent.mkdir(parents=True, exist_ok=True)
         with open(save_path, mode="w", encoding="utf-8") as f:

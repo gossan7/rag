@@ -11,6 +11,29 @@ def evaluate(
     dataset_path: str,
     logger: Logger
 ) -> None:
+    """Compute and print recall@k of search results against a dataset.
+
+    For each question, the retrieved sources are scanned in rank
+    order: an expected source is found once a retrieved source of
+    the same file reaches the configured minimum IoU with it, and
+    each expected source is counted at most once. Recall@k is the
+    share of expected sources found within the first k results,
+    averaged over the questions. When a question has fewer results
+    than an evaluated k, its last recall value is reused and that k
+    is flagged as ``estimated`` (some questions) or ``lower bound``
+    (every question).
+
+    Args:
+        config: Configuration providing the k values and the IoU.
+        student_search_results_path: Path of the search results file.
+        dataset_path: Path of the answered dataset.
+        logger: Logger used for the progress bar and the report.
+
+    Raises:
+        EvaluationError: If the two files do not describe the same
+            questions or if a question has no expected source.
+        RagError: If one of the files cannot be loaded.
+    """
     truth_sources, result_sources, question_ids = load_and_validate(
         student_search_results_path, dataset_path
     )

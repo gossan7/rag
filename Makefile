@@ -11,7 +11,7 @@ INTERFACE		:= docs
 ARGS    		?=
 
 .PHONY: help install run debug index search search_dataset answer answer_dataset evaluate \
-        profile lint lint-strict clean dclean fclean re
+        serve client profile lint lint-strict clean dclean fclean re
 
 help:
 	@printf '%s\n' \
@@ -33,12 +33,16 @@ help:
 		'  answer_dataset  Answer a dataset from search results' \
 		'  evaluate        Evaluate recall@k' \
 		'' \
+		'HTTP API targets:' \
+		'  serve           Start the local HTTP API (HOST=..., PORT=...)' \
+		'  client          Open the Swagger UI of a running server' \
+		'' \
 		'Development targets:' \
 		'  profile         Profile indexing with cProfile + snakeviz' \
 		'  lint-strict     Run flake8 + mypy --strict' \
-		'  dclean          Remove generated indexes/output' \
-		'  fclean          clean + dclean + remove .venv' \
-		'  re              Recreate the environment' \
+		'  dclean          Remove generated indexes, caches and outputs' \
+		'  fclean          clean + remove .venv' \
+		'  re              fclean + install' \
 		'' \
 		'Examples:' \
 		'  make' \
@@ -83,8 +87,8 @@ profile:
 	$(UV) run snakeviz profile.prof
 
 lint:
-	$(UV) run flake8 src/
-	$(UV) run mypy src/ \
+	$(UV) run flake8 .
+	$(UV) run mypy . \
 		--warn-return-any \
 		--warn-unused-ignores \
 		--ignore-missing-imports \
@@ -92,19 +96,20 @@ lint:
 		--check-untyped-defs
 
 lint-strict:
-	$(UV) run flake8 src/
-	$(UV) run mypy src/ --strict
+	$(UV) run flake8 .
+	$(UV) run mypy . --strict
 
 clean:
 	rm -rf .mypy_cache .pytest_cache .ruff_cache profile.prof
-	find . -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete
-	find . -type d -name '__pycache__' -prune -exec rm -rf {} +
-	find . -type d -name '*.egg-info' -prune -exec rm -rf {} +
+	find . \( -path ./.venv -o -path ./data -o -path ./.git \) -prune -o \
+		-type f \( -name '*.pyc' -o -name '*.pyo' \) -exec rm -f {} +
+	find . \( -path ./.venv -o -path ./data -o -path ./.git \) -prune -o \
+		-type d \( -name '__pycache__' -o -name '*.egg-info' \) -prune -exec rm -rf {} +
 
 dclean:
 	find data -maxdepth 1 -mindepth 1 ! -name raw ! -name datasets -exec rm -rf {} +
 
-fclean: dclean
+fclean: clean
 	rm -rf .venv
 
 re: fclean install

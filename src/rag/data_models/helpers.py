@@ -5,10 +5,29 @@ from ..errors import RagError
 
 
 def get_source_size(source: MinimalSource) -> int:
+    """Return the number of characters covered by a source.
+
+    Args:
+        source: Source whose end index is exclusive.
+
+    Returns:
+        The length of the character range.
+    """
     return source.last_character_index - source.first_character_index
 
 
 def can_merge_sources(source1: MinimalSource, source2: MinimalSource) -> bool:
+    """Tell whether two sources belong to the same file.
+
+    Adjacency of the two ranges is not checked.
+
+    Args:
+        source1: First source.
+        source2: Second source.
+
+    Returns:
+        True when both sources reference the same file path.
+    """
     return source1.file_path == source2.file_path
 
 
@@ -16,6 +35,17 @@ def merge_sources(
     source1: MinimalSource,
     source2: MinimalSource
 ) -> MinimalSource:
+    """Build the smallest source spanning two sources of one file.
+
+    Any gap between the two ranges is included in the result.
+
+    Args:
+        source1: First source.
+        source2: Second source, in the same file.
+
+    Returns:
+        A source going from the lowest start to the highest end.
+    """
     assert can_merge_sources(source1, source2)
 
     file_path = source1.file_path
@@ -36,6 +66,15 @@ def merge_sources(
 def get_merged_source_size(
     source1: MinimalSource, source2: MinimalSource
 ) -> int:
+    """Return the size two sources would have once merged.
+
+    Args:
+        source1: First source.
+        source2: Second source, in the same file.
+
+    Returns:
+        The number of characters covered by the merged range.
+    """
     return get_source_size(merge_sources(source1, source2))
 
 
@@ -43,6 +82,18 @@ def merge_scored_sources(
     sources1: dict[Source, float],
     sources2: dict[Source, float]
 ) -> dict[Source, float]:
+    """Merge two scored source mappings by adding their scores.
+
+    Sources are compared by value (path, range and chunk hash), so
+    the same chunk returned by two backends ends up as one entry.
+
+    Args:
+        sources1: Scores of a first set of sources.
+        sources2: Scores of a second set of sources.
+
+    Returns:
+        A new mapping holding every source with its summed score.
+    """
     new_sources: dict[Source, float] = {}
     for source, score in sources1.items():
         new_sources.setdefault(source, 0)
@@ -55,6 +106,19 @@ def merge_scored_sources(
 
 
 def source_is_valid(source: Source, content: str | None = None) -> bool:
+    """Tell whether a source still matches its indexed content.
+
+    Args:
+        source: Source to verify.
+        content: Text of the source range when it was already read.
+            When omitted, the range is read from the source file.
+
+    Returns:
+        False when the file cannot be read as UTF-8 or is shorter
+        than the range. Otherwise True when the source has no chunk
+        hash, or when the SHA-256 of the UTF-8 encoded range equals
+        its chunk hash.
+    """
     file_path = source.file_path
     start = source.first_character_index
     end = source.last_character_index
@@ -79,6 +143,22 @@ def source_is_valid(source: Source, content: str | None = None) -> bool:
 
 
 def load_source(source: Source) -> str:
+    """Read the text of a source from the current source file.
+
+    The indices are Unicode character indices in the decoded file,
+    not byte offsets.
+
+    Args:
+        source: Source to load.
+
+    Returns:
+        The characters of the source range.
+
+    Raises:
+        RagError: If the file is missing or unreadable, if it is now
+            shorter than the range, or if the range no longer matches
+            the chunk hash recorded at indexing time.
+    """
     file_path = source.file_path
     start = source.first_character_index
     end = source.last_character_index

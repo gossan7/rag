@@ -19,3 +19,5 @@ if __name__ == "__main__":
         logger.close_bars()
         logger.error("Interrupted by user.")
         sys.exit(130)
+    except Exception as e:
+        print(f"Unexpected error: {e}")

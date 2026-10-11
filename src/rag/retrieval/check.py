@@ -12,6 +12,26 @@ def check(
     backends: list[RetrievalBackend],
     logger: Logger
 ) -> None:
+    """Warn about differences between the corpus and the indexes.
+
+    The stored configuration of each backend is compared with the
+    current one (file types enabled or disabled, chunking method),
+    then the corpus is read and hashed to count, per backend, the
+    files that are not indexed, modified since indexing, or indexed
+    but gone. Differences are reported as warnings only: the indexes
+    are neither modified nor invalidated, and searching continues on
+    the indexed snapshot.
+
+    Args:
+        config: Current application configuration.
+        backends: Backends with an open search session.
+        logger: Logger receiving the progress bar and the warnings.
+
+    Raises:
+        SearchError: If the corpus directory is missing or if a
+            backend has no loaded configuration or manifest.
+        IndexingError: If a corpus file cannot be read.
+    """
     if not config.paths.raw.is_dir():
         raise SearchError(
             f"Cannot check the indexes: corpus directory "

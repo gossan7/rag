@@ -10,9 +10,24 @@ from .retrieval_backend import RetrievalBackend
 
 
 class BM25Backend(RetrievalBackend):
+    """Lexical retrieval backend scoring chunks with Tantivy BM25.
+
+    Each chunk is a Tantivy document whose body is tokenized and
+    indexed with term frequencies but not stored, next to the stored
+    source location and chunk hash. The file path and file type are
+    indexed as raw terms to allow removing the chunks of a file or
+    of a file type.
+    """
+
     backend_type: ClassVar[Backend] = Backend.BM25
 
     def __init__(self, config: Config, logger: Logger) -> None:
+        """Reset the Tantivy handles; nothing is opened yet.
+
+        Args:
+            config: Validated application configuration.
+            logger: Logger used by the backend.
+        """
         super().__init__(config, logger)
 
         self.schema: tantivy.Schema | None = None
@@ -21,6 +36,7 @@ class BM25Backend(RetrievalBackend):
         self.searcher: tantivy.Searcher | None = None
 
     def _ensure_shared_resources(self) -> None:
+        """Build the Tantivy schema once."""
         if self.schema is not None:
             return
 
@@ -59,6 +75,7 @@ class BM25Backend(RetrievalBackend):
         self.schema = builder.build()
 
     def _create_index(self) -> None:
+        """Create a new Tantivy index in the data directory."""
         assert self.schema is not None
         self.index = tantivy.Index(
             schema=self.schema,
@@ -67,6 +84,7 @@ class BM25Backend(RetrievalBackend):
         )
 
     def _load_index(self) -> None:
+        """Open the Tantivy index stored in the data directory."""
         assert self.schema is not None
         self.index = tantivy.Index(
             schema=self.schema,
@@ -75,20 +93,24 @@ class BM25Backend(RetrievalBackend):
         )
 
     def _open_writer(self) -> None:
+        """Create the index writer."""
         assert self.index is not None
         self.writer = self.index.writer()
 
     def _close_writer(self) -> None:
+        """Wait for the merging threads and drop the writer, if any."""
         if self.writer is None:
             return
         self.writer.wait_merging_threads()
         self.writer = None
 
     def _open_reader(self) -> None:
+        """Create a searcher on the current state of the index."""
         assert self.index is not None
         self.searcher = self.index.searcher()
 
     def _close_reader(self) -> None:
+        """Drop the searcher, if any."""
         if self.searcher is None:
             return
         self.searcher = None
@@ -99,6 +121,13 @@ class BM25Backend(RetrievalBackend):
         chunk: Source,
         chunk_content: str
     ) -> None:
+        """Add a chunk as a Tantivy document.
+
+        Args:
+            file_type: Type of the file the chunk comes from.
+            chunk: Location and content hash of the chunk.
+            chunk_content: Text of the chunk, indexed as the body.
+        """
         assert self.writer is not None
         doc = tantivy.Document(
             file_type=file_type.value,
@@ -111,6 +140,11 @@ class BM25Backend(RetrievalBackend):
         self.writer.add_document(doc)
 
     def _remove_file_from_index(self, file_path: str) -> None:
+        """Delete the documents whose file path matches exactly.
+
+        Args:
+            file_path: Path of the corpus file.
+        """
         assert self.writer is not None
         self.writer.delete_documents(
             field_name="file_path",
@@ -118,6 +152,11 @@ class BM25Backend(RetrievalBackend):
         )
 
     def _remove_file_type_from_index(self, file_type: FileType) -> None:
+        """Delete the documents of a file type.
+
+        Args:
+            file_type: File type to remove.
+        """
         assert self.writer is not None
         self.writer.delete_documents(
             field_name="file_type",
@@ -125,10 +164,12 @@ class BM25Backend(RetrievalBackend):
         )
 
     def _remove_all_documents_from_index(self) -> None:
+        """Delete every document of the index."""
         assert self.writer is not None
         self.writer.delete_all_documents()
 
     def _commit_index(self) -> None:
+        """Commit the pending additions and deletions."""
         assert self.writer is not None
         self.writer.commit()
 
@@ -137,6 +178,18 @@ class BM25Backend(RetrievalBackend):
         query: str,
         k: int
     ) -> list[tuple[Source, float]]:
+        """Query the body field and return BM25-scored hits.
+
+        The query is parsed leniently, so text that is not valid Tantivy
+        query syntax is still searched instead of raising an error.
+
+        Args:
+            query: Non-blank text of the query.
+            k: Maximum number of hits.
+
+        Returns:
+            At most ``k`` pairs made of a source and its BM25 score.
+        """
         assert self.index is not None
         assert self.searcher is not None
         parsed_query, _ = self.index.parse_query_lenient(

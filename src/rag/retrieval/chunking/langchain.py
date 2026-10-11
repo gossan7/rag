@@ -18,6 +18,23 @@ def langchain_chunk(
     file_data: FileData,
     max_chunk_size: int = 2000
 ) -> list[MinimalSource]:
+    """Split a file with the LangChain recursive character splitter.
+
+    Markdown and Python files use the separators of their language
+    (headings, code fences, definitions); plain text uses the default
+    separators. Consecutive chunks may overlap by up to 100
+    characters, or a tenth of ``max_chunk_size`` when that is
+    smaller. Sizes are measured in characters and surrounding
+    whitespace is not part of the chunks.
+
+    Args:
+        file_data: Type, path and decoded content of the file.
+        max_chunk_size: Maximum chunk size in characters.
+
+    Returns:
+        The chunk locations, located from the start index reported by
+        the splitter and the length of each chunk.
+    """
     chunks: list[MinimalSource] = []
     ext, file_path, file_content = file_data
     language = LANGUAGE[ext]

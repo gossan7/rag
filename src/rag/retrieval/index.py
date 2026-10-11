@@ -15,6 +15,24 @@ def index(
     backends: list[RetrievalBackend],
     file_iterator: Iterator[FileData]
 ) -> None:
+    """Feed the corpus files to the backends that need them.
+
+    Every file is registered in the manifest of each backend. A file
+    is chunked only when at least one backend needs it, and each
+    chunk is given the SHA-256 of its UTF-8 encoded text before
+    being added to those backends. Must run inside an indexing
+    session of every backend.
+
+    Args:
+        config: Configuration giving the chunking method per type.
+        max_chunk_size: Maximum chunk size in characters.
+        backends: Backends with an open indexing session.
+        file_iterator: Type, path and content of each corpus file.
+
+    Raises:
+        IndexingError: If a file cannot be read or a backend cannot
+            be written to.
+    """
     for file_data in file_iterator:
         file_type, file_path, file_content = file_data
         file_hash = sha256(file_content.encode("utf-8")).hexdigest()

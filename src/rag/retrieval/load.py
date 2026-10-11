@@ -8,6 +8,18 @@ from ..aliases import FileData
 
 
 def read_file(path: Path) -> str:
+    """Read a corpus file as UTF-8 text.
+
+    Args:
+        path: Path of the file.
+
+    Returns:
+        The decoded content, with universal newlines translation.
+
+    Raises:
+        IndexingError: If the file is not valid UTF-8 or cannot be
+            read.
+    """
     try:
         with open(path, "r", encoding="utf-8") as f:
             return f.read()
@@ -28,6 +40,16 @@ def file_paths(
     root: Path,
     excludes: set[str],
 ) -> list[Path]:
+    """List the files of a directory tree, skipping excluded folders.
+
+    Args:
+        root: Directory to walk.
+        excludes: Directory names that are not entered, at any depth.
+
+    Returns:
+        The path of every file found, each prefixed by ``root`` as it
+        was given.
+    """
     paths = []
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [
@@ -48,6 +70,16 @@ def count_files(
     file_types: set[FileType],
     excludes: set[str]
 ) -> int:
+    """Count the non-empty corpus files of the given types.
+
+    Args:
+        root: Corpus directory.
+        file_types: File types to keep.
+        excludes: Directory names that are not entered.
+
+    Returns:
+        The number of files ``file_generator`` would yield.
+    """
     c = 0
     paths = file_paths(root, excludes)
     str_file_types = set([ftype.value for ftype in file_types])
@@ -66,6 +98,20 @@ def file_generator(
     file_types: set[FileType],
     excludes: set[str]
 ) -> Iterator[FileData]:
+    """Yield the non-empty corpus files of the given types.
+
+    Args:
+        root: Corpus directory.
+        file_types: File types to keep.
+        excludes: Directory names that are not entered.
+
+    Yields:
+        The type, path and decoded content of each file.
+
+    Raises:
+        IndexingError: If a file is not valid UTF-8 or cannot be
+            read.
+    """
     paths = file_paths(root, excludes)
     str_file_types = set([ftype.value for ftype in file_types])
     for path in paths:

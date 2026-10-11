@@ -11,6 +11,20 @@ def dump_manifest(
     file_name: str,
     directory: Path
 ) -> None:
+    """Write an index manifest to a JSON file.
+
+    The content is first written to a sibling ``.tmp`` file which
+    then replaces the destination. The directory is created when
+    missing.
+
+    Args:
+        manifest: Manifest to serialize.
+        file_name: Name of the destination file.
+        directory: Directory receiving the file.
+
+    Raises:
+        RagError: If the directory or the file cannot be written.
+    """
     raw_manifest = manifest.model_dump(mode="json")
     path = directory / Path(file_name)
     text_manifest = json.dumps(raw_manifest)
