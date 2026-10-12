@@ -69,7 +69,7 @@ class BM25Backend(RetrievalBackend):
             name="body",
             stored=False,
             tokenizer_name="default",
-            index_option="freq"
+            index_option="position"
         )
 
         self.schema = builder.build()

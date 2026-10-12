@@ -102,8 +102,6 @@ Behaviour is driven by a YAML file from the `config/` directory, selected on eve
 | `code.yaml` | `.py` (also excludes `tests`, `examples`) | TF-IDF 0.1, BM25 0.8, MiniLM 1.0 | `data/processed/code` |
 | `fast.yaml` | `.py`, `.md`, `.txt` | BM25 1.0 only | `data/processed/fast` |
 
-> **Note:** `default.yaml` is the configuration used when `--config_file` is omitted. As committed, its `paths.raw` is a machine-specific absolute path and only `.py` files are enabled; set `paths.raw` to `data/raw` (and enable the file types you need) before running the bare commands of the subject, or pass `--config_file` explicitly. `docs.yaml`, `code.yaml` and `fast.yaml` all read `data/raw`.
-
 The schema is the same for every file:
 
 ```yaml

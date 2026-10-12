@@ -21,3 +21,4 @@ if __name__ == "__main__":
         sys.exit(130)
     except Exception as e:
         print(f"Unexpected error: {e}")
+        sys.exit(2)

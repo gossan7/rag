@@ -6,6 +6,8 @@ from ..data_models import (
 )
 from .backends import RetrievalBackend
 
+MIN_K = 50
+
 
 def search(
     question: UnansweredQuestion,
@@ -43,7 +45,7 @@ def search(
     merged: dict[Source, float] = {}
     for bkd in backends:
         merged = merge_scored_sources(
-            merged, bkd.search(query, k*2)
+            merged, bkd.search(query, max(MIN_K, k*2))
         )
     out = list(merged.keys())
     out.sort(key=merged.__getitem__, reverse=True)

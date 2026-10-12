@@ -1,3 +1,5 @@
+from fire.decorators import SetParseFns
+
 from functools import cached_property
 
 from .rag import RAG
@@ -79,6 +81,7 @@ class RagCLI:
         """
         return RAG(self._config_file)
 
+    @SetParseFns(max_chunk_size=int, config_file=str)
     def index(
         self,
         max_chunk_size: int = 2000,
@@ -97,6 +100,7 @@ class RagCLI:
         self._config_file = text_argument("config_file", config_file)
         self._rag.index(max_chunk_size)
 
+    @SetParseFns(query=str, k=int, config_file=str)
     def search(
         self,
         query: str,
@@ -118,6 +122,7 @@ class RagCLI:
         self._config_file = text_argument("config_file", config_file)
         self._rag.search(query, k)
 
+    @SetParseFns(dataset_path=str, k=int, save_directory=str, config_file=str)
     def search_dataset(
         self,
         dataset_path: str,
@@ -143,6 +148,7 @@ class RagCLI:
         self._config_file = text_argument("config_file", config_file)
         self._rag.search_dataset(dataset_path, k, save_directory)
 
+    @SetParseFns(query=str, k=int, config_file=str)
     def answer(
         self,
         query: str,
@@ -165,6 +171,11 @@ class RagCLI:
         self._config_file = text_argument("config_file", config_file)
         self._rag.answer(query, k)
 
+    @SetParseFns(
+        student_search_results_path=str,
+        save_directory=str,
+        config_file=str
+    )
     def answer_dataset(
         self,
         student_search_results_path: str,
@@ -191,6 +202,11 @@ class RagCLI:
         self._config_file = text_argument("config_file", config_file)
         self._rag.answer_dataset(student_search_results_path, save_directory)
 
+    @SetParseFns(
+        student_search_results_path=str,
+        dataset_path=str,
+        config_file=str
+    )
     def evaluate(
         self,
         student_search_results_path: str,

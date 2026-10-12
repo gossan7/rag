@@ -169,8 +169,9 @@ class TFIDFBackend(RetrievalBackend):
 
         parsed_query = parser.parse_query(
             query,
-            xapian.QueryParser.FLAG_DEFAULT
-            | xapian.QueryParser.FLAG_NO_POSITIONS,
+            xapian.QueryParser.FLAG_PHRASE
+            | xapian.QueryParser.FLAG_LOVEHATE
+            | xapian.QueryParser.FLAG_NO_POSITIONS
         )
 
         enquire = xapian.Enquire(self.database)

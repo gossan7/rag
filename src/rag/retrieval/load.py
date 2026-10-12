@@ -120,4 +120,7 @@ def file_generator(
             continue
         if path.suffix not in str_file_types:
             continue
-        yield (FileType(path.suffix), str(path), read_file(path))
+        try:
+            yield (FileType(path.suffix), str(path), read_file(path))
+        except Exception:
+            continue

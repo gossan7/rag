@@ -8,6 +8,7 @@ from collections.abc import AsyncGenerator
 from threading import Lock
 from argparse import ArgumentParser
 from typing import cast
+import sys
 
 from .rag import RAG
 from .config import load_config
@@ -154,3 +155,4 @@ if __name__ == "__main__":
         main()
     except Exception as e:
         print(f"Unexpected error: {e}")
+        sys.exit(2)
