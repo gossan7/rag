@@ -16,8 +16,8 @@ def search(
 ) -> SearchResults:
     """Retrieve the best sources of a question by weighted rank fusion.
 
-    Each backend is asked for ``2 * k`` hits and returns rank-based
-    scores scaled by its weight. The scores of a chunk returned by
+    Each backend is asked for ``max(MIN_K, 2 * k)`` hits and returns
+    rank-based scores scaled by its weight. The scores of a chunk returned by
     several backends are added, and the ``k`` chunks with the highest
     totals are kept in decreasing order. A blank question or a
     non-positive ``k`` gives an empty result without querying the

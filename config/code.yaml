@@ -2,13 +2,11 @@
 # Only Python files are indexed; tests and examples are excluded (no expected source lives there).
 # Usage: --config_file=code.yaml (it has its own index directory).
 
-# Specifies path for: files to process, directory to save index, datasets, and output.
+# Specifies path for: files to process and directory to save index
 # Do not change unless you know what you're doing
 paths:
   raw: "data/raw"
   processed: "data/processed/code"
-  datasets: "data/datasets"
-  output: "data/output"
 
 
 # Specifies which file types will be processed, which directories to exclude, and which chunking method is used.
@@ -33,15 +31,15 @@ retrieval:
   backends:
     tfidf:
       enabled: true
-      weight: 0.1
+      weight: 0.05
       path: "tfidf"
     bm25:
       enabled: true
-      weight: 0.8
+      weight: 1.0
       path: "bm25"
     minilm:
       enabled: true
-      weight: 1.0
+      weight: 0.5
       path: "minilm"
 
 

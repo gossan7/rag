@@ -13,7 +13,7 @@ class BM25Backend(RetrievalBackend):
     """Lexical retrieval backend scoring chunks with Tantivy BM25.
 
     Each chunk is a Tantivy document whose body is tokenized and
-    indexed with term frequencies but not stored, next to the stored
+    indexed with positions but not stored, next to the stored
     source location and chunk hash. The file path and file type are
     indexed as raw terms to allow removing the chunks of a file or
     of a file type.
@@ -186,8 +186,10 @@ class BM25Backend(RetrievalBackend):
     ) -> list[tuple[Source, float]]:
         """Query the body field and return BM25-scored hits.
 
-        The query is parsed leniently, so text that is not valid Tantivy
-        query syntax is still searched instead of raising an error.
+        The query is not interpreted as Tantivy query syntax: it is
+        tokenized and lowercased, over-long tokens are dropped, and the
+        remaining tokens are combined as optional terms. A query that
+        yields no token gives no hit.
 
         Args:
             query: Non-blank text of the query.

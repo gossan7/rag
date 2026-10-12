@@ -199,12 +199,6 @@ class RetrievalBackend(ABC):
             return True
         return not any(self.index_path.iterdir())
 
-    def _index_is_valid(self) -> bool:
-        """Tell whether the index exists and shows no problem."""
-        if self._index_is_empty():
-            return False
-        return self._index_problem() is None
-
     def _load_metadatas(self) -> None:
         """Load the configuration and manifest stored with the index.
 

@@ -2,13 +2,11 @@
 # Only Markdown and text files are indexed; BM25 dominates the fusion.
 # Usage: --config_file=docs.yaml (it has its own index directory).
 
-# Specifies path for: files to process, directory to save index, datasets, and output.
+# Specifies path for: files to process and directory to save index
 # Do not change unless you know what you're doing
 paths:
   raw: "data/raw"
   processed: "data/processed/docs"
-  datasets: "data/datasets"
-  output: "data/output"
 
 
 # Specifies which file types will be processed, which directories to exclude, and which chunking method is used.
@@ -33,7 +31,7 @@ retrieval:
   backends:
     tfidf:
       enabled: true
-      weight: 0.2
+      weight: 0.1
       path: "tfidf"
     bm25:
       enabled: true

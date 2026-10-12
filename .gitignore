@@ -2,9 +2,7 @@
 .installed
 *cache*
 data/
-42files
 src/rag.egg-info/
 profile.prof
 .env
 .vscode
-*.pdf

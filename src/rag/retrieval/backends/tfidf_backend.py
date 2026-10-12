@@ -153,8 +153,8 @@ class TFIDFBackend(RetrievalBackend):
     ) -> list[tuple[Source, float]]:
         """Query the database with the Xapian TF-IDF weighting scheme.
 
-        The query goes through the Xapian query parser with its default
-        flags, without positional information.
+        The query goes through the Xapian query parser with boolean
+        operators disabled, so words such as AND or NOT are plain terms.
 
         Args:
             query: Non-blank text of the query.
@@ -170,7 +170,6 @@ class TFIDFBackend(RetrievalBackend):
         parsed_query = parser.parse_query(
             query,
             xapian.QueryParser.FLAG_PHRASE
-            | xapian.QueryParser.FLAG_LOVEHATE
             | xapian.QueryParser.FLAG_NO_POSITIONS
         )
 

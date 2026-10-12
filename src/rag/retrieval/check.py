@@ -30,7 +30,6 @@ def check(
     Raises:
         SearchError: If the corpus directory is missing or if a
             backend has no loaded configuration or manifest.
-        IndexingError: If a corpus file cannot be read.
     """
     if not config.paths.raw.is_dir():
         raise SearchError(

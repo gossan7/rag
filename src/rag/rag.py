@@ -100,7 +100,7 @@ class RAG:
             IndexingError: If the chunk size is out of range, if the
                 corpus directory is missing or holds no indexable file,
                 if an existing index is incomplete or unreadable, or if
-                reading the corpus or writing an index fails. When the
+                writing an index fails. When the
                 run is aborted, the message lists the indexes left marked
                 as incomplete.
             KeyboardInterrupt: Re-raised after warning about the indexes
@@ -211,8 +211,6 @@ class RAG:
         Raises:
             SearchError: If an index is missing, incomplete or
                 unreadable, or if the corpus directory is missing.
-            IndexingError: If a corpus file cannot be read during the
-                index check.
         """
         question = UnansweredQuestion(
             question_id=sha256(query.strip().encode("utf-8")).hexdigest(),

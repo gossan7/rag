@@ -78,7 +78,8 @@ def count_files(
         excludes: Directory names that are not entered.
 
     Returns:
-        The number of files ``file_generator`` would yield.
+        The number of candidate files. ``file_generator`` may yield
+        fewer, since it skips the files it cannot read.
     """
     c = 0
     paths = file_paths(root, excludes)
@@ -100,6 +101,8 @@ def file_generator(
 ) -> Iterator[FileData]:
     """Yield the non-empty corpus files of the given types.
 
+    A file that cannot be read as UTF-8 text is skipped silently.
+
     Args:
         root: Corpus directory.
         file_types: File types to keep.
@@ -107,10 +110,6 @@ def file_generator(
 
     Yields:
         The type, path and decoded content of each file.
-
-    Raises:
-        IndexingError: If a file is not valid UTF-8 or cannot be
-            read.
     """
     paths = file_paths(root, excludes)
     str_file_types = set([ftype.value for ftype in file_types])

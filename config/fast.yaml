@@ -1,13 +1,11 @@
 # Config for RagCLI, faster than default: BM25 only, no embedding model is loaded for indexing or search.
 # Usage: --config_file=fast.yaml (it has its own index directory).
 
-# Specifies path for: files to process, directory to save index, datasets, and output.
+# Specifies path for: files to process and directory to save index
 # Do not change unless you know what you're doing
 paths:
   raw: "data/raw"
   processed: "data/processed/fast"
-  datasets: "data/datasets"
-  output: "data/output"
 
 
 # Specifies which file types will be processed, which directories to exclude, and which chunking method is used.

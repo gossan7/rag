@@ -1,9 +1,12 @@
 from fire.decorators import SetParseFns
 
 from functools import cached_property
+from typing import TYPE_CHECKING
 
-from .rag import RAG
 from .errors import RagError
+
+if TYPE_CHECKING:
+    from .rag import RAG
 
 
 def text_argument(name: str, value: object, allow_empty: bool = False) -> str:
@@ -69,7 +72,7 @@ class RagCLI:
         self._config_file: str = "default.yaml"
 
     @cached_property
-    def _rag(self) -> RAG:
+    def _rag(self) -> "RAG":
         """Return the RAG service, created on first access.
 
         The service is built from the configuration file selected by the
@@ -79,9 +82,10 @@ class RagCLI:
             ConfigError: If the configuration is missing or invalid.
             AnswerError: If the answer cache cannot be opened.
         """
+        from .rag import RAG
         return RAG(self._config_file)
 
-    @SetParseFns(max_chunk_size=int, config_file=str)
+    @SetParseFns(config_file=str)
     def index(
         self,
         max_chunk_size: int = 2000,
@@ -100,7 +104,7 @@ class RagCLI:
         self._config_file = text_argument("config_file", config_file)
         self._rag.index(max_chunk_size)
 
-    @SetParseFns(query=str, k=int, config_file=str)
+    @SetParseFns(query=str, config_file=str)
     def search(
         self,
         query: str,
@@ -122,7 +126,7 @@ class RagCLI:
         self._config_file = text_argument("config_file", config_file)
         self._rag.search(query, k)
 
-    @SetParseFns(dataset_path=str, k=int, save_directory=str, config_file=str)
+    @SetParseFns(dataset_path=str, save_directory=str, config_file=str)
     def search_dataset(
         self,
         dataset_path: str,
@@ -148,7 +152,7 @@ class RagCLI:
         self._config_file = text_argument("config_file", config_file)
         self._rag.search_dataset(dataset_path, k, save_directory)
 
-    @SetParseFns(query=str, k=int, config_file=str)
+    @SetParseFns(query=str, config_file=str)
     def answer(
         self,
         query: str,

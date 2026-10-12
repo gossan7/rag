@@ -97,9 +97,9 @@ Behaviour is driven by a YAML file from the `config/` directory, selected on eve
 
 | File | Indexed file types | Enabled backends (weights) | Index directory |
 |---|---|---|---|
-| `default.yaml` | `.py` | TF-IDF 0.3, BM25 0.9, MiniLM 1.0 | `data/processed/default` |
-| `docs.yaml` | `.md`, `.txt` | TF-IDF 0.2, BM25 1.0, MiniLM 0.1 | `data/processed/docs` |
-| `code.yaml` | `.py` (also excludes `tests`, `examples`) | TF-IDF 0.1, BM25 0.8, MiniLM 1.0 | `data/processed/code` |
+| `default.yaml` | `.py`, `.md`, `.txt` | TF-IDF 0.05, BM25 1.0, MiniLM 0.1 | `data/processed/default` |
+| `docs.yaml` | `.md`, `.txt` | TF-IDF 0.1, BM25 1.0, MiniLM 0.1 | `data/processed/docs` |
+| `code.yaml` | `.py` (also excludes `tests`, `examples`) | TF-IDF 0.05, BM25 1.0, MiniLM 0.5 | `data/processed/code` |
 | `fast.yaml` | `.py`, `.md`, `.txt` | BM25 1.0 only | `data/processed/fast` |
 
 The schema is the same for every file:
@@ -108,8 +108,6 @@ The schema is the same for every file:
 paths:
   raw: "data/raw"                  # corpus directory
   processed: "data/processed/docs" # root of the indexes and caches
-  datasets: "data/datasets"
-  output: "data/output"
 
 indexing:
   excludes: ["__pycache__", ".git", ".venv"]   # directory names, at any depth
@@ -120,7 +118,7 @@ indexing:
 
 retrieval:
   backends:
-    tfidf:  {enabled: true, weight: 0.2, path: "tfidf"}
+    tfidf:  {enabled: true, weight: 0.1, path: "tfidf"}
     bm25:   {enabled: true, weight: 1.0, path: "bm25"}
     minilm: {enabled: true, weight: 0.1, path: "minilm"}
 
@@ -131,10 +129,10 @@ evaluation:
 answer:
   model_name: "Qwen/Qwen3-0.6B"
   path: "generation"       # answer cache directory, under paths.processed
-  thinking_mode: false
+  thinking_mode: true
   temperature: 0.7
   max_input_tokens: 20000
-  max_output_tokens: 1024
+  max_output_tokens: 20000
   preprompt: ""
 ```
 
@@ -142,9 +140,9 @@ The file is validated by pydantic models (`src/rag/config/config.py`) and any pr
 
 - unknown keys are rejected, and every section is required;
 - chunking methods are `ast` (Python only), `langchain` or `window`; at least one file type and one backend must be enabled;
-- backend weights are in `]0, 1]`, `temperature` in `]0, 1]`, `min_iou` in `[0.05, 1]`, recall values are `>= 1`;
+- backend weights are in `]0, 1]`, `temperature` in `]0, 1]`, `min_iou` in `[0.05, 1]`, recall values are `>= 1`, and `max_input_tokens` and `max_output_tokens` are `>= 256`;
 - `excludes` entries are directory names, not paths;
-- the four `paths` must be distinct directories, and every storage directory (one per backend, plus the answer cache) must be a dedicated subdirectory of `paths.processed` that is neither equal to, inside of, nor a parent of the corpus, dataset or output directory, and not nested in another storage directory.
+- `paths.raw` and `paths.processed` must be distinct directories, and every storage directory (one per backend, plus the answer cache) must be a dedicated subdirectory of `paths.processed` that is neither equal to, inside of, nor a parent of the corpus directory, and not nested in another storage directory. Dataset and output locations are not configured here: they are always given as CLI arguments.
 
 That last rule exists because the recovery procedure of a broken index is to delete its directory by hand: the configuration must make that deletion unable to reach the corpus or another index.
 
@@ -152,7 +150,7 @@ The chunk size is not part of the YAML file: it is the `--max_chunk_size` argume
 
 ## Example usage
 
-Python Fire accepts both `--option value` and `--option=value`. `query` can be given positionally or as `--query`. Diagnostics and progress bars are written to standard error and results to standard output. Expected errors are reported as a one-line message with exit status 1 (2 for a usage error reported by Fire, 130 on Ctrl+C).
+Python Fire accepts both `--option value` and `--option=value`. `query` can be given positionally or as `--query`. Text arguments (queries, paths, configuration name) are taken verbatim: they are never converted to numbers, booleans or lists. Diagnostics and progress bars are written to standard error and results to standard output. Expected errors are reported as a one-line message with exit status 1; a usage error reported by Fire or an unexpected error exits with status 2, and Ctrl+C with 130.
 
 ### Index
 
@@ -246,9 +244,9 @@ Prints recall@k for the k values of `evaluation.recall`:
 ```text
 Questions evaluated: 100
 Recall@1:  0.60 (60.00%)
-Recall@3:  0.82 (82.00%)
-Recall@5:  0.85 (85.00%)
-Recall@10: 0.89 (89.00%)
+Recall@3:  0.79 (79.00%)
+Recall@5:  0.88 (88.00%)
+Recall@10: 0.94 (94.00%)
 ```
 
 This command is a development tool; it never imports or calls the official moulinette.
@@ -306,7 +304,7 @@ flowchart TD
 
 The pipeline works as follows.
 
-1. **Corpus discovery.** `paths.raw` is walked with `os.walk`; directories listed in `indexing.excludes` are pruned; only non-empty files of an enabled type are kept and read as UTF-8.
+1. **Corpus discovery.** `paths.raw` is walked with `os.walk`; directories listed in `indexing.excludes` are pruned; only non-empty files of an enabled type are kept and read as UTF-8; a file that cannot be read as UTF-8 text is skipped.
 2. **Indexing.** Each file is hashed (SHA-256). Every backend records it in its new manifest and says whether it needs the file. A file is chunked only if at least one backend needs it, and each chunk is given the SHA-256 of its text.
 3. **Storage.** Each backend stores the chunk in its own engine under `data/processed/<profile>/<backend>/`.
 4. **Retrieval.** Each enabled backend returns its best chunks for the query; the rankings are merged by weighted rank fusion.
@@ -336,7 +334,7 @@ The chunks of a Python file are contiguous, never overlap and cover the whole fi
 
 **Byte offsets versus character indices.** The `ast` module reports `col_offset` and `end_col_offset` as UTF-8 *byte* offsets within the line, whereas the subject expects *character* indices. `get_boundaries` therefore converts them: on a line that contains non-ASCII characters, the UTF-8 prefix of `col_offset` bytes is decoded and its length in characters is used; on an ASCII line both are equal and no conversion is needed. Line starts are precomputed once per file.
 
-**Fallback.** A file that raises `SyntaxError` is chunked with the recursive text splitter using Python separators instead of being skipped.
+**Fallback.** A file that `ast.parse` rejects (`SyntaxError` or `ValueError`) is chunked with the recursive text splitter using Python separators instead of being skipped.
 
 ### Markdown and text: recursive splitting
 
@@ -364,9 +362,9 @@ The chunks of a Python file are contiguous, never overlap and cover the whole fi
 | `bm25` | lexical | [Tantivy](https://github.com/quickwit-oss/tantivy) | BM25 |
 | `minilm` | semantic | `all-MiniLM-L6-v2` + [Chroma](https://www.trychroma.com/) | cosine distance |
 
-**TF-IDF (Xapian).** Each chunk is a Xapian document indexed with a `TermGenerator`, without positional information; the serialized source is stored as document data. Queries go through Xapian's `QueryParser` and are ranked with the TF-IDF weighting scheme. Two hashed boolean terms (file path, file type) make it possible to delete the chunks of one file or of one file type.
+**TF-IDF (Xapian).** Each chunk is a Xapian document indexed with a `TermGenerator`, without positional information; the serialized source is stored as document data. Queries go through Xapian's `QueryParser` with boolean operators disabled, so words such as `AND` or `NOT` in a question are ordinary terms and cannot cause a syntax error; results are ranked with the TF-IDF weighting scheme. Two hashed boolean terms (file path, file type) make it possible to delete the chunks of one file or of one file type.
 
-**BM25 (Tantivy).** Each chunk is a Tantivy document whose `body` field is tokenized and indexed with term frequencies; the source location and chunk hash are stored fields, and the file path and file type are indexed as raw terms for deletion. Queries are parsed leniently, so arbitrary text never raises a syntax error. Tantivy scores with BM25. TF-IDF and BM25 are two separate implementations in two separate engines.
+**BM25 (Tantivy).** Each chunk is a Tantivy document whose `body` field is tokenized and indexed (not stored); the source location and chunk hash are stored fields, and the file path and file type are indexed as raw terms for deletion. The question is not interpreted as query syntax: it is tokenized and lowercased, over-long tokens are dropped, and the tokens are combined as optional terms (a boolean OR), so arbitrary text never raises a syntax error. Tantivy scores with BM25. TF-IDF and BM25 are two separate implementations in two separate engines.
 
 **MiniLM (semantic).** Chunks are embedded with `sentence-transformers/all-MiniLM-L6-v2`, normalised, and stored in a persistent Chroma collection configured for cosine distance (HNSW index). Only the embeddings and metadata are stored. The query is embedded the same way and the nearest chunks are returned. On CPU the model runs through its 8-bit quantized **OpenVINO** export; on CUDA it runs in PyTorch with half precision. Chunks are buffered and embedded in batches (commit every 2048 chunks, encoding batches of 128).
 
@@ -376,13 +374,13 @@ Lexical backends match the exact words of the question, which is ideal when it q
 
 Raw scores are not comparable across backends (a TF-IDF weight, a BM25 score and a negated cosine distance live on different scales), so they are never mixed. Only **ranks** are combined (`src/rag/retrieval/search.py` and `RetrievalBackend.search`):
 
-1. For a request of `k` results, each enabled backend is asked for `K = 2k` hits.
+1. For a request of `k` results, each enabled backend is asked for `K = max(50, 2k)` hits, so the candidate pool does not shrink for small `k`.
 2. Within a backend, hits are ranked by decreasing raw score; hits with equal raw scores share the same rank `r` (1 is best).
 3. Each hit receives the score `w * (K - r + 1) / K`, where `w` is the backend weight from the configuration. The best hit of a backend scores `w`, the last possible one `w / K`.
 4. Scores of the same chunk coming from several backends are **added**. Two hits are the same chunk when file path, character range and chunk hash are all equal, which is always the case across backends since they index the same chunks; this is also how duplicates are removed.
 5. Chunks are sorted by decreasing total and the first `k` are returned.
 
-A chunk found by several backends is therefore promoted over a chunk found by one, and the weights express how much each backend is trusted for a given kind of corpus (BM25 dominates in `docs.yaml`, MiniLM and BM25 in `code.yaml`).
+A chunk found by several backends is therefore promoted over a chunk found by one, and the weights express how much each backend is trusted for a given kind of corpus (BM25 dominates in every configuration; the semantic backend weighs more in `code.yaml` than in `docs.yaml`).
 
 ## Persistent and incremental indexing
 
@@ -467,7 +465,7 @@ Both caches are persistent [`diskcache`](https://grantjenks.com/docs/diskcache/)
 
 Each backend has its own cache in `<index>/search_cache/`. It stores the **raw hits** of the engine under the key `(query, K, fingerprint)`:
 
-- `query` is the stripped question and `K` the number of hits requested from the engine;
+- `query` is the stripped question and `K` the number of hits requested from the engine (`max(50, 2k)`);
 - `fingerprint` is the SHA-256 of the index manifest (chunk size and all file hashes) and of the file type settings the index was built with.
 
 Any indexing run that changes the indexed content changes the fingerprint, so stale entries can no longer be hit; they are simply evicted over time. Because raw hits are cached *before* rank conversion and weighting, fusion weights can be tuned without invalidating anything, and each backend benefits independently. In practice this skips the query embedding and vector search on repeated queries.
@@ -559,42 +557,61 @@ The subject requires at least **80 % recall@5 on docs** and **50 % on code**, in
 
 ### Recall@k
 
-Measured with `evaluate` on the public datasets, from results produced by `search_dataset --k 10` with `--max_chunk_size 2000`:
+Measured with `evaluate` on the public datasets, from results produced by `search_dataset --k 10` on indexes built with `--max_chunk_size 2000`, on a CPU-only run (quantized OpenVINO embeddings):
 
 | Dataset | Configuration | Questions | Recall@1 | Recall@3 | Recall@5 | Recall@10 |
 |---|---|---|---|---|---|---|
-| `dataset_docs_public.json` | `docs.yaml` | 100 | 60.00 % | 82.00 % | **85.00 %** | 89.00 % |
-| `dataset_code_public.json` | `code.yaml` | 99 | 27.27 % | 42.42 % | **52.53 %** | 59.60 % |
+| `dataset_docs_public.json` | `default.yaml` | 100 | 51.00 % | 78.00 % | **84.00 %** | 88.00 % |
+| `dataset_code_public.json` | `default.yaml` | 99 | 36.36 % | 50.51 % | **56.57 %** | 66.67 % |
+| `dataset_docs_public.json` | `docs.yaml` | 100 | 62.00 % | 81.00 % | **91.00 %** | 94.00 % |
+| `dataset_code_public.json` | `code.yaml` | 99 | 33.33 % | 52.53 % | **61.62 %** | 68.69 % |
+| `dataset_docs_public.json` | `fast.yaml` | 100 | 59.00 % | 76.00 % | **83.00 %** | 87.00 % |
+| `dataset_code_public.json` | `fast.yaml` | 99 | 34.34 % | 51.52 % | **56.57 %** | 64.65 % |
 
-Both are above the thresholds of the subject, with a narrow margin on code. Remarks:
+Remarks:
 
-- These scores are obtained with the two dedicated configurations, each indexing only the relevant file types into its own index. No measurement is available for a single index covering both code and documentation.
-- Because each backend is asked for `2k` hits and ranks are normalised by `2k`, the first five results of a `--k 10` run are not guaranteed to be identical to a `--k 5` run.
-- No ablation (one backend at a time) and no measurement with smaller chunk sizes has been recorded; the effect of `--max_chunk_size` on recall has not been measured.
+- Every configuration is above the thresholds of the subject (80 % on docs, 50 % on code). `default.yaml`, the configuration used when `--config_file` is omitted, indexes code and documentation into a single index and passes both.
+- The fusion weights were chosen by a grid search on these public datasets, preferring settings whose neighbours in the grid score similarly over isolated maxima. They are therefore fitted to about 100 questions per dataset, and the same margins are not guaranteed on other questions.
+- BM25 carries most of the signal on this corpus: BM25 alone (`fast.yaml`) is within one point of the three-backend default, and the semantic backend helps mostly on code questions when only code is indexed (`code.yaml`).
+- The dedicated configurations index only the relevant file types, which removes the competition between code and documentation chunks for the same top-5.
+- The official moulinette (`evaluate_student_search_results --k 10 --max_context_length 2000`) validates the `default.yaml` outputs and reports the same recall values as `evaluate` on both datasets.
+
+### Effect of the chunk size
+
+`default.yaml`, same CPU-only conditions, the whole index rebuilt for each value of `--max_chunk_size`:
+
+| `--max_chunk_size` | Chunks | Indexing time | Docs Recall@5 | Docs Recall@10 | Code Recall@5 | Code Recall@10 |
+|---|---|---|---|---|---|---|
+| 500 | 53,524 | 5 min 08 s | 80.00 % | 86.00 % | 56.57 % | 63.64 % |
+| 1000 | 27,079 | 3 min 20 s | 86.00 % | 87.00 % | 56.57 % | 65.66 % |
+| 1500 | 18,279 | 1 min 57 s | 83.00 % | 86.00 % | 59.60 % | 70.71 % |
+| 2000 (default) | 13,867 | 1 min 54 s to 2 min 01 s | 84.00 % | 88.00 % | 56.57 % | 66.67 % |
+
+Recall@5 varies by a few points without a clear trend between 1000 and 2000, which is within what about 100 questions per dataset can resolve; the fusion weights were tuned at 2000 only. The cost of small chunks is clear, though: the number of chunks to embed grows roughly in inverse proportion to the size, and at 500 indexing exceeds the 5-minute limit on CPU while docs recall drops to the threshold. The default of 2000 gives the fastest indexing with recall at least as good as the alternatives overall.
 
 ### Indexing time
 
-The following timings are the author's development measurements on the vLLM corpus (hardware not recorded) and were not re-run for this document:
+Measured on an Intel Core Ultra 7 265 (20 logical CPUs) with the GPU hidden (`CUDA_VISIBLE_DEVICES=""`), from an empty `data/processed`, models already downloaded:
 
-| Setup | Indexing time |
-|---|---|
-| Lexical backends only | about 2 to 3 s |
-| With MiniLM, PyTorch on CPU | about 20 min |
-| With MiniLM, quantized OpenVINO on CPU | about 1 min 51 s |
-| With MiniLM on GPU | about 27 s |
+| Configuration | Files | Chunks | Indexing time |
+|---|---|---|---|
+| `default.yaml` | 1,847 | 13,867 | 1 min 54 s |
+| `code.yaml` | 915 | 9,372 | 1 min 03 s |
+| `docs.yaml` | 206 | 888 | 11.7 s |
+| `default.yaml`, second run without changes | 1,847 | 0 | 0.1 s |
 
-Embedding the chunks dominates the indexing time, and the PyTorch CPU path does not fit in the 5-minute limit. The OpenVINO path is therefore what makes semantic indexing compatible with the CPU-only constraint, not an incidental optimisation.
+The full corpus fits in the 5-minute limit on CPU. Embedding the chunks dominates: during development, the same embedding step took about 20 minutes with PyTorch on CPU (author's measurement, not re-run), which is why the CPU path uses the quantized OpenVINO export of MiniLM.
 
 ### Search time
 
-Measured on an Intel Core Ultra 7 265 (20 logical CPUs) with an NVIDIA RTX 4050 Laptop GPU, where the embedding model runs on CUDA; raw engine queries without the search cache, 20 hits per query:
+Same machine and CPU-only conditions, `default.yaml`, empty search cache, complete `search_dataset --k 10` runs (process start, model loading, corpus check, searches, output):
 
-| Index | Queries | TF-IDF | BM25 | MiniLM |
-|---|---|---|---|---|
-| `docs.yaml` | 100 | 0.02 s | 0.01 s | 6.35 s |
-| `code.yaml` | 99 | 0.06 s | 0.02 s | 3.04 s |
+| Dataset | Questions | Wall-clock time |
+|---|---|---|
+| `dataset_docs_public.json` | 100 | 11.6 s |
+| `dataset_code_public.json` | 99 | 9.0 s |
 
-With a warm search cache, a complete `search_dataset` run on either public dataset (process start, corpus check, 100 questions, output) takes about one second. Search throughput on a CPU-only machine (OpenVINO path) has not been measured.
+That is about 21 seconds for 199 questions, against a limit of 90 seconds for 200. Repeated runs are served by the search cache.
 
 ## Design decisions
 
@@ -610,19 +627,20 @@ With a warm search cache, a complete `search_dataset` run on either public datas
 - **Local inference, loaded lazily.** Everything runs on the local machine with the model required by the subject; models are loaded only by the commands that need them, which keeps `index` (lexical), `evaluate` and cached answers fast.
 - **Explicit token budgets.** Exceeding the input limit or the context window is an error with measured sizes, not a silent truncation that would drop sources without notice.
 - **Thin HTTP API.** The API reuses the `RAG` service unchanged; behaviour, validation and error messages are the same as the CLI.
-- **Safe storage layout.** Configuration validation forbids index and cache directories that overlap each other or the corpus, datasets and outputs, and commands refuse to overwrite their own input file.
+- **Safe storage layout.** Configuration validation forbids index and cache directories that overlap each other or the corpus, and commands refuse to overwrite their own input file.
 
 ## Challenges faced
 
 - **Character indices from the AST.** `ast` column offsets are UTF-8 byte offsets, which silently shifts every chunk located after a non-ASCII character on a line. *Solution:* per-line conversion by decoding the byte prefix, with a fast path for ASCII lines.
 - **Oversized syntactic units.** Some functions, classes and literals exceed 2000 characters. *Solution:* recursive descent into child statements, greedy merging of small neighbours, and a line-based fallback when no child structure remains.
-- **Unparsable Python files.** *Solution:* fallback to the text splitter on `SyntaxError` so the file is still indexed.
+- **Unparsable Python files.** *Solution:* fallback to the text splitter when `ast.parse` fails, so the file is still indexed.
+- **Questions are not search queries.** A natural-language question can contain words or punctuation that a search engine interprets as operators (`AND`, `NOT`, quotes, colons). *Solution:* boolean operators are disabled in the Xapian parser, and the BM25 query is built from analyzed tokens instead of being parsed.
 - **Incomparable backend scores.** *Solution:* weighted rank fusion with shared ranks for ties.
 - **Embedding time on CPU.** PyTorch on CPU took about 20 minutes for the corpus. *Solution:* the quantized OpenVINO export of MiniLM, batching, and incremental indexing so that the cost is only paid for changed files.
 - **Interrupted runs and index consistency.** Three independent engines cannot be committed atomically together. *Solution:* a per-backend marker removed only after the final commit and metadata write, and a refusal to use marked indexes.
 - **Sources changing after retrieval.** Search results files can outlive the corpus state they describe. *Solution:* chunk hashes checked when the text is loaded, with per-source skipping and explicit warnings.
 - **A small reasoning model.** Qwen3-0.6B can spend its whole output budget thinking. *Solution:* configurable thinking mode and output limit, removal of the thinking part, and detection of unfinished thinking.
-- **Command-line value parsing.** Python Fire converts values that look like Python literals (a numeric query becomes a number, `[1,2]` a list). *Solution:* explicit validation and conversion of every argument, with messages naming the option.
+- **Command-line value parsing.** Python Fire converts values that look like Python literals (a numeric query becomes a number, `[1,2]` a list). *Solution:* text arguments are declared with Fire's `SetParseFns` so they are always received as strings, and integer arguments are validated explicitly, with messages naming the option.
 
 ## Bonus features
 
@@ -636,10 +654,9 @@ With a warm search cache, a complete `search_dataset` run on either public datas
 
 ## Limitations
 
-- When `--config_file` is omitted, the committed `default.yaml` must first be pointed at `data/raw` (see [Configuration](#configuration)).
-- The TF-IDF backend uses Xapian's query syntax: a query with a dangling uppercase operator (for example ending with `AND`, or starting with `NOT`) is rejected with an error instead of returning results, and such a question aborts a `search_dataset` run.
+- Fusion weights are tuned on the public datasets only (see [Performance analysis](#performance-analysis)).
 - `check` reads and hashes the enabled corpus files before every search command, and a search needs the corpus directory to exist even though results come from the index.
-- A corpus file of an enabled type that is not valid UTF-8 stops indexing with an error naming the file.
+- A corpus file of an enabled type that cannot be read as UTF-8 text is skipped without a message.
 - Files are read with universal newlines, so indices are relative to the text with `\r\n` normalised to `\n`.
 - The HTTP API always uses `default.yaml` and serves one request at a time.
 - The prompt is never truncated: a `k` too large for the token budgets produces an error for that question.
@@ -663,5 +680,9 @@ With a warm search cache, a complete `search_dataset` run on either public datas
 
 ### AI usage
 
-- **Documentation.** The docstrings of the code base and the first version of this README were written with Claude Code (Anthropic) from the existing implementation. The same tool was used to run a read-only compliance review of the repository against the subject.
-- **Other uses.** *To be completed by the author: any other AI assistance used during the project (tasks and parts of the project concerned).*
+- **Documentation.** The docstrings of the code base and the first version of this README were written with Claude Code from the existing implementation.
+- **Review.** Claude Code and Chat GPT were used to review each PRs and to do a final review for a 100% subject compliance.
+- **Research.** Chat GPT was used to find useful libs, documentation of those libs, etc.
+- **Terminal output.** Claude Code was used to improve terminal output lisibility (small implementations in logger.py)
+
+- Every AI-Generated code is flagged in the PR's description.

@@ -1,12 +1,10 @@
 # Config for RagCLI
 
-# Specifies path for: files to process, directory to save index, datasets, and output.
+# Specifies path for: files to process and directory to save index
 # Do not change unless you know what you're doing
 paths:
   raw: "data/raw"
   processed: "data/processed/default"
-  datasets: "data/datasets"
-  output: "data/output"
 
 
 # Specifies which file types will be processed, which directories to exclude, and which chunking method is used.
@@ -31,15 +29,15 @@ retrieval:
   backends:
     tfidf:
       enabled: true
-      weight: 0.3
+      weight: 0.05
       path: "tfidf"
     bm25:
       enabled: true
-      weight: 0.9
+      weight: 1.0
       path: "bm25"
     minilm:
       enabled: true
-      weight: 1.0
+      weight: 0.1
       path: "minilm"
 
 

@@ -30,8 +30,7 @@ def index(
         file_iterator: Type, path and content of each corpus file.
 
     Raises:
-        IndexingError: If a file cannot be read or a backend cannot
-            be written to.
+        IndexingError: If a backend cannot be written to.
     """
     for file_data in file_iterator:
         file_type, file_path, file_content = file_data

@@ -99,21 +99,17 @@ class BackendConfig(BaseConfig):
 class PathsConfig(BaseConfig):
     """Directories used by the application.
 
-    The four directories must resolve to distinct locations.
+    The two directories must resolve to distinct locations.
 
     Attributes:
         raw: Corpus directory that is walked and indexed.
         processed: Root directory of the indexes and caches.
-        datasets: Directory of the question datasets.
-        output: Directory of the generated result files.
     """
 
     raw: Path
     processed: Path
-    datasets: Path
-    output: Path
 
-    @field_validator("raw", "processed", "datasets", "output")
+    @field_validator("raw", "processed")
     @classmethod
     def validate_directory(cls, path: Path) -> Path:
         """Reject a configured path that exists but is not a directory.
@@ -149,7 +145,7 @@ class PathsConfig(BaseConfig):
             ValueError: If two entries resolve to the same directory.
         """
         seen: dict[Path, str] = {}
-        for name in ("raw", "processed", "datasets", "output"):
+        for name in ("raw", "processed"):
             resolved = getattr(self, name).resolve()
             if resolved in seen:
                 raise ValueError(
@@ -305,7 +301,7 @@ class Config(BaseConfig):
     Besides the validation of each section, the storage directories
     (one per backend index plus the answer cache, all located under
     ``paths.processed``) are checked against each other and against
-    the corpus, dataset and output directories.
+    the corpus directory.
 
     Attributes:
         paths: Directories used by the application.
@@ -328,9 +324,9 @@ class Config(BaseConfig):
         Each backend index directory and the answer cache directory
         must be a dedicated subdirectory of ``paths.processed``: it must
         not be an existing non-directory, ``paths.processed`` itself, or
-        equal to, inside of, or a parent of the corpus, dataset or
-        output directory. Two storage directories must neither be equal
-        nor nested. Every problem found is reported at once.
+        equal to, inside of, or a parent of the corpus directory. Two
+        storage directories must neither be equal nor nested. Every
+        problem found is reported at once.
 
         Returns:
             The validated model.
@@ -350,9 +346,7 @@ class Config(BaseConfig):
             field: path.resolve() for field, path in storage.items()
         }
         shared = {
-            "paths.raw": self.paths.raw.resolve(),
-            "paths.datasets": self.paths.datasets.resolve(),
-            "paths.output": self.paths.output.resolve(),
+            "paths.raw": self.paths.raw.resolve()
         }
         root = processed.resolve()
         problems: list[str] = []
