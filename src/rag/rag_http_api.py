@@ -56,7 +56,7 @@ app = FastAPI(lifespan=lifespan)
 
 @app.exception_handler(RagError)
 async def rag_error_handler(
-    request: Request,
+    _: Request,
     exc: RagError,
 ) -> JSONResponse:
     """Convert an application error into a 400 JSON response.

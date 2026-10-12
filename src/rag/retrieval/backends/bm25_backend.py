@@ -73,6 +73,12 @@ class BM25Backend(RetrievalBackend):
         )
 
         self.schema = builder.build()
+        self.query_analyzer = (
+            tantivy.TextAnalyzerBuilder(tantivy.Tokenizer.simple())
+            .filter(tantivy.Filter.remove_long(40))
+            .filter(tantivy.Filter.lowercase())
+            .build()
+        )
 
     def _create_index(self) -> None:
         """Create a new Tantivy index in the data directory."""
@@ -192,10 +198,25 @@ class BM25Backend(RetrievalBackend):
         """
         assert self.index is not None
         assert self.searcher is not None
-        parsed_query, _ = self.index.parse_query_lenient(
-            query=query,
-            default_field_names=["body"],
-        )
+        assert self.schema is not None
+
+        tokens = self.query_analyzer.analyze(query)
+
+        if not tokens:
+            return []
+
+        parsed_query = tantivy.Query.boolean_query([
+            (
+                tantivy.Occur.Should,
+                tantivy.Query.term_query(
+                    self.schema,
+                    "body",
+                    token,
+                    index_option="freq",
+                ),
+            )
+            for token in tokens
+        ])
 
         results = self.searcher.search(
             query=parsed_query,
