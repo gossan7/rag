@@ -1,6 +1,6 @@
-
 from copy import deepcopy
 from typing import Any
+import logging
 
 from ..config import Config
 from ..logger import Logger
@@ -9,6 +9,8 @@ from ..errors import AnswerError, ModelLoadError
 THINK_END_MARKERS = ("</think>",)
 CONTEXT_ATTRIBUTES = ("max_position_embeddings", "n_positions", "n_ctx")
 MAX_PLAUSIBLE_CONTEXT = 10_000_000
+
+logging.getLogger("transformers.pipelines.base").setLevel(logging.ERROR)
 
 
 class LLM:
