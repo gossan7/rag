@@ -291,6 +291,6 @@ Indexing the whole corpus fits in the 5-minute limit on CPU, and about 200 quest
 - **Documentation.** The docstrings of the code base and the first version of this README were written with Claude Code from the existing implementation.
 - **Review.** Claude Code and Chat GPT were used to review each PRs and to do a final review for a 100% subject compliance.
 - **Research.** Chat GPT was used to find useful libs, documentation of those libs, etc.
-- **Terminal output.** Claude Code was used to improve terminal output lisibility (small implementations in logger.py)
+- **Terminal output.** Claude Code was used to improve terminal output readability (small implementations in logger.py)
 
 Every AI-Generated code is flagged in the PR's description.
