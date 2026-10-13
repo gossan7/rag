@@ -5,6 +5,7 @@ import os
 from ..errors import IndexingError
 from ..enums import FileType
 from ..aliases import FileData
+from ..logger import Logger
 
 
 def read_file(path: Path) -> str:
@@ -97,7 +98,8 @@ def count_files(
 def file_generator(
     root: Path,
     file_types: set[FileType],
-    excludes: set[str]
+    excludes: set[str],
+    logger: Logger
 ) -> Iterator[FileData]:
     """Yield the non-empty corpus files of the given types.
 
@@ -119,7 +121,4 @@ def file_generator(
             continue
         if path.suffix not in str_file_types:
             continue
-        try:
-            yield (FileType(path.suffix), str(path), read_file(path))
-        except Exception:
-            continue
+        yield (FileType(path.suffix), str(path), read_file(path))

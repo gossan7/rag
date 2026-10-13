@@ -106,7 +106,7 @@ class RAG:
             KeyboardInterrupt: Re-raised after warning about the indexes
                 left marked as incomplete.
         """
-        if max_chunk_size < 1 or max_chunk_size > 2000:
+        if max_chunk_size < 200 or max_chunk_size > 2000:
             raise IndexingError(
                 f"Invalid max_chunk_size {max_chunk_size}: expected an "
                 "integer between 1 and 2000."

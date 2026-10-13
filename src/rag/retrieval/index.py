@@ -1,6 +1,7 @@
 from hashlib import sha256
 
 from collections.abc import Iterator
+from pathlib import Path
 
 from ..config import Config
 from ..aliases import FileData
@@ -51,9 +52,12 @@ def index(
             bkd.prepare_file(file_type, file_path)
 
         for chunk in chunk_file(config, file_data, max_chunk_size):
+            file_name = str(Path(file_path).relative_to(config.paths.raw))
             chunk_content = file_content[
                 chunk.first_character_index:chunk.last_character_index
             ]
+            indexed_content = file_name + '\n' + chunk_content
+
             chunk_hash = sha256(chunk_content.encode("utf-8")).hexdigest()
 
             chunk_with_hash = Source(
@@ -64,4 +68,4 @@ def index(
             )
 
             for bkd in dirty:
-                bkd.add_chunk(file_type, chunk_with_hash, chunk_content)
+                bkd.add_chunk(file_type, chunk_with_hash, indexed_content)
