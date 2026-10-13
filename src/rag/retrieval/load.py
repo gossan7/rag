@@ -103,12 +103,13 @@ def file_generator(
 ) -> Iterator[FileData]:
     """Yield the non-empty corpus files of the given types.
 
-    A file that cannot be read as UTF-8 text is skipped silently.
+    A file that cannot be read as UTF-8 text is skipped with a warning.
 
     Args:
         root: Corpus directory.
         file_types: File types to keep.
         excludes: Directory names that are not entered.
+        logger: Logger receiving the warnings about skipped files.
 
     Yields:
         The type, path and decoded content of each file.
@@ -121,4 +122,9 @@ def file_generator(
             continue
         if path.suffix not in str_file_types:
             continue
-        yield (FileType(path.suffix), str(path), read_file(path))
+        try:
+            content = read_file(path)
+        except IndexingError as e:
+            logger.warning(f"Skipping corpus file: {e}")
+            continue
+        yield (FileType(path.suffix), str(path), content)

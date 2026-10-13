@@ -6,3 +6,4 @@ src/rag.egg-info/
 profile.prof
 .env
 .vscode
+*.pdf

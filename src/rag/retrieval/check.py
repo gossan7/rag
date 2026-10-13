@@ -90,6 +90,7 @@ def check(
         root=config.paths.raw,
         file_types=file_types,
         excludes=config.indexing.excludes,
+        logger=logger,
     )
 
     all_files = set()

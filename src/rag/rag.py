@@ -93,7 +93,7 @@ class RAG:
         their current version.
 
         Args:
-            max_chunk_size: Maximum chunk size in characters, from 1 to
+            max_chunk_size: Maximum chunk size in characters, from 200 to
                 2000.
 
         Raises:
@@ -109,7 +109,7 @@ class RAG:
         if max_chunk_size < 200 or max_chunk_size > 2000:
             raise IndexingError(
                 f"Invalid max_chunk_size {max_chunk_size}: expected an "
-                "integer between 1 and 2000."
+                "integer between 200 and 2000."
             )
 
         raw = self.config.paths.raw
@@ -152,6 +152,7 @@ class RAG:
                 root=self.config.paths.raw,
                 file_types=file_types,
                 excludes=self.config.indexing.excludes,
+                logger=self.logger,
             ),
             n_files
         )

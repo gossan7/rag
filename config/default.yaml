@@ -29,7 +29,7 @@ retrieval:
   backends:
     tfidf:
       enabled: true
-      weight: 0.05
+      weight: 0.15
       path: "tfidf"
     bm25:
       enabled: true
@@ -37,7 +37,7 @@ retrieval:
       path: "bm25"
     minilm:
       enabled: true
-      weight: 0.1
+      weight: 0.3
       path: "minilm"
 
 

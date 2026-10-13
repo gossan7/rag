@@ -30,7 +30,7 @@ indexing:
 retrieval:
   backends:
     tfidf:
-      enabled: true
+      enabled: false
       weight: 0.05
       path: "tfidf"
     bm25:
@@ -39,7 +39,7 @@ retrieval:
       path: "bm25"
     minilm:
       enabled: true
-      weight: 0.5
+      weight: 0.3
       path: "minilm"
 
 

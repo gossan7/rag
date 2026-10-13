@@ -21,8 +21,11 @@ def index(
     Every file is registered in the manifest of each backend. A file
     is chunked only when at least one backend needs it, and each
     chunk is given the SHA-256 of its UTF-8 encoded text before
-    being added to those backends. Must run inside an indexing
-    session of every backend.
+    being added to those backends. The text handed to the backends
+    is the chunk prefixed with the path of its file relative to the
+    corpus directory, so that file names are searchable; the hash
+    and the character range still describe the chunk alone. Must run
+    inside an indexing session of every backend.
 
     Args:
         config: Configuration giving the chunking method per type.

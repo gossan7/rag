@@ -94,7 +94,7 @@ class RagCLI:
         """Build or update the indexes of the configured corpus.
 
         Args:
-            max_chunk_size: Maximum chunk size in characters (1-2000).
+            max_chunk_size: Maximum chunk size in characters (200-2000).
             config_file: Configuration file name in ``config``.
 
         Raises:
